@@ -482,10 +482,10 @@ function DashApp({session,onLogout}){
         if(ins&&ins.length>0)setDrugs(ins);
         // else: keep showing initial SAMPLE state — never blank
       });
-      if(ws.owner_id===uid)setShowTour(true);
     }
     setLoading(false);
-    const v=localStorage.getItem(`sp_v_${uid}`);if(!v){setShowTour(true);localStorage.setItem(`sp_v_${uid}`,"1")}
+    const v=localStorage.getItem(`sp_v_${uid}`);
+    if(!v){setShowTour(true);localStorage.setItem(`sp_v_${uid}`,"1")}
   };ld()},[uid]);
 
   const t2=(m,t="ok")=>{setToast({m,t});setTimeout(()=>setToast(null),3000)};
