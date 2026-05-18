@@ -30,6 +30,7 @@ const Ic={
   x:p=><Sv d="M18 6L6 18M6 6l12 12" {...p}/>,
   check:p=><Sv d="M20 6L9 17l-5-5" {...p}/>,
   cart:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>,
+  users:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   alert:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   upload:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   download:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
@@ -383,8 +384,43 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .qty-ctrl button:disabled{opacity:.35;cursor:not-allowed}
 .qty-ctrl span{min-width:28px;text-align:center;font-size:13px;font-weight:600}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+.team-avatar{width:34px;height:34px;border-radius:50%;background:var(--al);color:var(--ac);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.team-member-row{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--bd2);gap:10px;font-size:12px}
+.team-member-row:last-child{border-bottom:none}
+.team-role{font-size:10px;font-weight:600;padding:2px 9px;border-radius:20px}
+.team-role.owner{background:var(--al);color:var(--ac)}
+.team-role.member{background:var(--bg);color:var(--t3);border:1px solid var(--bd)}
+.team-status{font-size:10px;margin-top:1px}
+.team-status.active{color:var(--ok)}
+.team-status.pending{color:var(--w)}
+.team-invite-box{padding:16px}
+.ws-id{font-size:10px;color:var(--t3);font-family:monospace;margin-top:3px;word-break:break-all}
 @media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
 `;
+
+/* ═══════ WORKSPACE SETUP ═══════ */
+async function setupWorkspace(user){
+  // 1. Accept any pending invites for this email
+  const{data:pending}=await supabase.from("workspace_members").select("id").eq("email",user.email).is("user_id",null);
+  for(const inv of(pending||[])){
+    await supabase.from("workspace_members").update({user_id:user.id,accepted_at:new Date().toISOString()}).eq("id",inv.id);
+  }
+  // 2. Find existing workspace membership
+  const{data:memberships}=await supabase.from("workspace_members").select("workspace_id").eq("user_id",user.id).not("accepted_at","is",null).order("accepted_at",{ascending:true}).limit(1);
+  if(memberships?.length){
+    const{data:ws}=await supabase.from("workspaces").select("*").eq("id",memberships[0].workspace_id).single();
+    if(ws)return ws;
+  }
+  // 3. Create a new workspace for this user
+  const wsName=user.user_metadata?.full_name?`Pharmacie ${user.user_metadata.full_name}`:"Ma Pharmacie";
+  const{data:ws,error}=await supabase.from("workspaces").insert({name:wsName,owner_id:user.id}).select().single();
+  if(error)throw error;
+  await supabase.from("workspace_members").insert({workspace_id:ws.id,user_id:user.id,email:user.email,role:"owner",accepted_at:new Date().toISOString()});
+  // 4. Migrate any existing drugs/sales that don't have a workspace_id yet
+  await supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",user.id).is("workspace_id",null);
+  await supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",user.id).is("workspace_id",null);
+  return ws;
+}
 
 /* ═══════ BAR CHART ═══════ */
 function BarChart({data,fmt}){
@@ -400,37 +436,53 @@ function DashApp({session,onLogout}){
   const[loading,setLoading]=useState(true);const[showTour,setShowTour]=useState(false);
   const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);
   const[currency,setCurrency]=useState(()=>localStorage.getItem("sp_currency")||"USD");
-  const fileRef=useRef(null);const uid=session.user.id;
+  const[workspace,setWorkspace]=useState(null);const[members,setMembers]=useState([]);
+  const workspaceRef=useRef(null);
+  const fileRef=useRef(null);
+  const uid=session.user.id;
 
   const fmt=useCallback((n)=>fmtAmt(n,currency),[currency]);
   const toggleCurrency=()=>{const nx=currency==="USD"?"FC":"USD";setCurrency(nx);localStorage.setItem("sp_currency",nx)};
 
   useEffect(()=>{const ld=async()=>{setLoading(true);
-    const{data:d}=await supabase.from("drugs").select("*").eq("user_id",uid).order("name");
-    const{data:s}=await supabase.from("sales").select("*").eq("user_id",uid).order("created_at",{ascending:false});
-    if(d&&d.length===0){const samples=SAMPLE.map(s=>({...s,user_id:uid}));const{data:ins}=await supabase.from("drugs").insert(samples).select();setDrugs(ins||[]);setShowTour(true)}else{setDrugs(d||[])}
-    setSales(s||[]);setLoading(false);
+    let ws;
+    try{ws=await setupWorkspace(session.user)}catch(e){console.error("Workspace setup failed:",e);setLoading(false);return}
+    workspaceRef.current=ws;setWorkspace(ws);
+    const[{data:d},{data:s},{data:m}]=await Promise.all([
+      supabase.from("drugs").select("*").eq("workspace_id",ws.id).order("name"),
+      supabase.from("sales").select("*").eq("workspace_id",ws.id).order("created_at",{ascending:false}),
+      supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at"),
+    ]);
+    setMembers(m||[]);setSales(s||[]);
+    const myRole=(m||[]).find(mb=>mb.user_id===uid)?.role;
+    if(d&&d.length===0&&myRole==="owner"){
+      const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
+      const{data:ins}=await supabase.from("drugs").insert(samples).select();
+      setDrugs(ins||[]);setShowTour(true);
+    }else{setDrugs(d||[])}
+    setLoading(false);
     const v=localStorage.getItem(`sp_v_${uid}`);if(!v){setShowTour(true);localStorage.setItem(`sp_v_${uid}`,"1")}
   };ld()},[uid]);
 
   const t2=(m,t="ok")=>{setToast({m,t});setTimeout(()=>setToast(null),3000)};
-  const rlD=async()=>{const{data}=await supabase.from("drugs").select("*").eq("user_id",uid).order("name");setDrugs(data||[])};
-  const rlS=async()=>{const{data}=await supabase.from("sales").select("*").eq("user_id",uid).order("created_at",{ascending:false});setSales(data||[])};
+  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("drugs").select("*").eq("workspace_id",ws.id).order("name");setDrugs(data||[])};
+  const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("sales").select("*").eq("workspace_id",ws.id).order("created_at",{ascending:false});setSales(data||[])};
+  const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
   const addToCart=(drug)=>{
     setCart(prev=>{const ex=prev.find(i=>i.drug.id===drug.id);if(ex)return prev.map(i=>i.drug.id===drug.id?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]});
     t2(`${drug.name} ajouté au panier`);
   };
 
-  const hAdd=async(drug)=>{const{error}=await supabase.from("drugs").insert({...drug,user_id:uid});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
+  const hAdd=async(drug)=>{const ws=workspaceRef.current;const{error}=await supabase.from("drugs").insert({...drug,user_id:uid,workspace_id:ws?.id});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
   const hEdit=async(drug)=>{const{id,user_id,created_at,updated_at,...rest}=drug;const{error}=await supabase.from("drugs").update({...rest,updated_at:new Date().toISOString()}).eq("id",id);if(error){t2("Erreur","er");return}await rlD();t2(`${drug.name} modifié`);setModal(null)};
   const hDel=async(id)=>{const d=drugs.find(x=>x.id===id);if(!window.confirm(`Supprimer "${d?.name}" ?`))return;await supabase.from("sales").delete().eq("drug_id",id);await supabase.from("drugs").delete().eq("id",id);await rlD();await rlS();t2(`${d?.name} supprimé`,"er")};
   const hRes=async(did,qty)=>{const d=drugs.find(x=>x.id===did);if(!d||qty<1)return;const{error}=await supabase.from("drugs").update({stock:d.stock+qty}).eq("id",did);if(error){t2("Erreur","er");return}await rlD();t2(`+${qty} ${d.name}`);setModal(null)};
 
   const hCartSell=async(cartItems,customerName)=>{
-    const invNum=genInv();
+    const ws=workspaceRef.current;const invNum=genInv();
     const salesData=cartItems.map(item=>({
-      user_id:uid,drug_id:item.drug.id,drug_name:item.drug.name,
+      user_id:uid,workspace_id:ws?.id,drug_id:item.drug.id,drug_name:item.drug.name,
       qty:item.qty,unit_price:item.drug.price,total:item.qty*item.drug.price,
       sale_date:today(),sale_time:new Date().toLocaleTimeString(),
       invoice_number:invNum,customer_name:customerName||null,
@@ -449,8 +501,22 @@ function DashApp({session,onLogout}){
     t2(`Vente confirmée · ${fmt(total)}`);
   };
 
-  const hCSV=async(text)=>{try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
+  const hCSV=async(text)=>{const ws=workspaceRef.current;try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,workspace_id:ws?.id,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
   const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
+
+  const hInvite=async(email)=>{
+    const ws=workspaceRef.current;if(!ws)return;
+    if(members.find(m=>m.email.toLowerCase()===email.toLowerCase())){t2("Cet e-mail est déjà invité","er");return}
+    const{error}=await supabase.from("workspace_members").insert({workspace_id:ws.id,email,role:"member"});
+    if(error){t2("Erreur: "+error.message,"er");return}
+    await loadMembers();t2(`Invitation envoyée à ${email}`);
+  };
+  const hRemoveMember=async(memberId)=>{
+    if(!window.confirm("Retirer ce membre de l'espace de travail ?"))return;
+    const{error}=await supabase.from("workspace_members").delete().eq("id",memberId);
+    if(error){t2("Erreur","er");return}
+    await loadMembers();t2("Membre retiré");
+  };
 
   const tD=drugs.length,tS=drugs.reduce((s,d)=>s+d.stock,0);
   const low=drugs.filter(d=>d.stock>0&&d.stock<=(d.min_stock||20));const out=drugs.filter(d=>d.stock===0);
@@ -460,8 +526,8 @@ function DashApp({session,onLogout}){
   const flt=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.barcode&&d.barcode.includes(q))||(d.category&&d.category.toLowerCase().includes(q))});
   const cartCount=cart.reduce((s,i)=>s+i.qty,0);
 
-  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null}];
-  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration"};
+  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"team",label:"Équipe",icon:Ic.users}];
+  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",team:"Équipe & Accès"};
 
   if(loading)return(<><style>{DCSS}</style><div className="ld-ov"><div className="spin"/><p style={{marginTop:12,color:'#4A6B5A',fontSize:12}}>Chargement...</p></div></>);
 
@@ -493,6 +559,7 @@ function DashApp({session,onLogout}){
         {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
         {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
+        {page==="team"&&workspace&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember}/>}
       </div>
     </main>
     {modal?.type==="add"&&<DF title="Ajouter un médicament" onClose={()=>setModal(null)} onSave={hAdd}/>}
@@ -723,6 +790,64 @@ function CM({onClose,onImport,fileRef}){
     </div>
     <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onImport(pv)} disabled={!pv}>{Ic.upload({size:12})} Importer</button></div>
   </div></div>);
+}
+
+/* ═══════ TEAM PAGE ═══════ */
+function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember}){
+  const[email,setEmail]=useState("");const[busy,setBusy]=useState(false);
+  const isOwner=workspace?.owner_id===currentUserId;
+  const handleInvite=async()=>{if(!email.trim())return;setBusy(true);await onInvite(email.trim().toLowerCase());setEmail("");setBusy(false)};
+  const activeCount=members.filter(m=>m.accepted_at).length;
+  const pendingCount=members.filter(m=>!m.accepted_at).length;
+  return(<div>
+    {/* Workspace card */}
+    <div className="tc" style={{marginBottom:14}}>
+      <div className="th2"><h3>Espace de travail</h3>{isOwner&&<span style={{fontSize:10,background:'var(--al)',color:'var(--ac)',padding:'2px 8px',borderRadius:20,fontWeight:600}}>Propriétaire</span>}</div>
+      <div style={{padding:'14px 16px'}}>
+        <div style={{fontSize:17,fontWeight:600,color:'var(--t)',marginBottom:4}}>{workspace.name}</div>
+        <div className="ws-id">ID : {workspace.id}</div>
+        <div style={{marginTop:10,display:'flex',gap:14,fontSize:12,color:'var(--t3)'}}>
+          <span>{Ic.users({size:13})} {activeCount} membre{activeCount!==1?"s":""} actif{activeCount!==1?"s":""}</span>
+          {pendingCount>0&&<span style={{color:'var(--w)'}}>· {pendingCount} invitation{pendingCount!==1?"s":""} en attente</span>}
+        </div>
+      </div>
+    </div>
+
+    {/* Members list */}
+    <div className="tc" style={{marginBottom:14}}>
+      <div className="th2"><h3>Membres de l'équipe</h3><span style={{fontSize:10,color:'var(--t3)'}}>{members.length} personne{members.length!==1?"s":""}</span></div>
+      {members.length===0?<div className="emp"><p>Aucun membre pour l'instant</p></div>:
+      members.map(m=><div key={m.id} className="team-member-row">
+        <div className="team-avatar">{m.email[0].toUpperCase()}</div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:600,fontSize:12}}>{m.email}</div>
+          <div className={`team-status ${m.accepted_at?"active":"pending"}`}>
+            {m.accepted_at?"● Actif":"○ Invitation en attente"}
+          </div>
+        </div>
+        <span className={`team-role ${m.role}`}>{m.role==="owner"?"Propriétaire":"Membre"}</span>
+        {isOwner&&m.role!=="owner"&&<button className="bt bt-g bt-sm" onClick={()=>onRemoveMember(m.id)} style={{color:'var(--d)'}} title="Retirer">{Ic.x({size:11})}</button>}
+      </div>)}
+    </div>
+
+    {/* Invite form — owner only */}
+    {isOwner&&<div className="tc">
+      <div className="th2"><h3>Inviter un collaborateur</h3></div>
+      <div className="team-invite-box">
+        <p style={{fontSize:12,color:'var(--t3)',lineHeight:1.6,marginBottom:12}}>
+          Entrez l'adresse e-mail du collaborateur. Cette personne doit créer un compte avec cette adresse exacte — elle aura alors automatiquement accès à tout l'inventaire et aux ventes partagés.
+        </p>
+        <div style={{display:'flex',gap:8}}>
+          <div style={{flex:1}}><input className="fi input" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleInvite()} placeholder="collaborateur@exemple.com" style={{width:'100%',padding:'7px 9px',border:'1px solid var(--bd)',borderRadius:'var(--rs)',fontSize:12,fontFamily:"'Outfit',sans-serif",color:'var(--t)',outline:'none'}}/></div>
+          <button className="bt bt-p" onClick={handleInvite} disabled={!email.trim()||busy}>{Ic.plus({size:13})} {busy?"...":"Inviter"}</button>
+        </div>
+      </div>
+    </div>}
+
+    {!isOwner&&<div style={{background:'var(--bg)',borderRadius:'var(--r)',padding:'14px 16px',border:'1px solid var(--bd2)',fontSize:12,color:'var(--t3)',textAlign:'center'}}>
+      Seul le propriétaire de l'espace de travail peut inviter des membres.
+    </div>}
+  </div>);
 }
 
 /* ═══════ ROOT ═══════ */
