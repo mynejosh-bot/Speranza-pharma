@@ -508,6 +508,14 @@ function DashApp({session,onLogout}){
   const hCSV=async(text)=>{const ws=workspaceRef.current;try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,workspace_id:ws?.id,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
   const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
 
+  const hClearAll=async()=>{
+    if(!window.confirm("Supprimer tous les médicaments de l'inventaire ? Cette action est irréversible."))return;
+    const ws=workspaceRef.current;
+    await supabase.from("drugs").delete().eq("workspace_id",ws.id);
+    await supabase.from("drugs").delete().eq("user_id",uid).is("workspace_id",null);
+    await rlD();t2("Inventaire vidé","er");
+  };
+
   const hInvite=async(email)=>{
     const ws=workspaceRef.current;if(!ws)return;
     if(members.find(m=>m.email.toLowerCase()===email.toLowerCase())){t2("Cet e-mail est déjà invité","er");return}
@@ -544,6 +552,7 @@ function DashApp({session,onLogout}){
         <div className="sb-lbl" style={{marginTop:"auto"}}>Données</div>
         <button className="sb-btn" onClick={()=>setModal({type:"csv"})}>{Ic.upload({size:15})}<span>Importer CSV</span></button>
         <button className="sb-btn" onClick={expCSV}>{Ic.download({size:15})}<span>Exporter CSV</span></button>
+        <button className="sb-btn" onClick={hClearAll} style={{color:'#F87171'}}>{Ic.trash({size:15})}<span>Vider l'inventaire</span></button>
       </nav>
     </aside>
     <main className="mn">
