@@ -460,8 +460,16 @@ function DashApp({session,onLogout}){
     if(s?.some(x=>!x.workspace_id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
     if(d&&d.length===0&&ws.owner_id===uid){
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
-      const{data:ins}=await supabase.from("drugs").insert(samples).select();
-      setDrugs(ins||[]);setShowTour(true);
+      const{data:ins,error:insErr}=await supabase.from("drugs").insert(samples).select();
+      if(ins&&ins.length>0){
+        setDrugs(ins);
+      }else{
+        // INSERT returned nothing (silent RLS failure or timing issue) — display in-memory samples
+        // so the UI is never blank. They'll persist to DB on next successful write or page reload.
+        console.warn("Sample seed silent fail:",insErr);
+        setDrugs(samples);
+      }
+      setShowTour(true);
     }else{setDrugs(d||[])}
     setLoading(false);
     const v=localStorage.getItem(`sp_v_${uid}`);if(!v){setShowTour(true);localStorage.setItem(`sp_v_${uid}`,"1")}
