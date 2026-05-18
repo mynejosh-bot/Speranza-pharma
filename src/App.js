@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 
-/* ═══════ HELPERS ═══════ */
+/* ═══════ CONSTANTS & HELPERS ═══════ */
+const FC_RATE = 2800;
+const LOGO = "/image_2026-05-12_204244494.png";
 const today = () => new Date().toISOString().split("T")[0];
 const fmtUSD = (n) => new Intl.NumberFormat("fr-CD", { style: "currency", currency: "USD" }).format(n);
+const fmtAmt = (n, cur) => cur === "FC" ? new Intl.NumberFormat("fr-CD").format(Math.round(n * FC_RATE)) + " FC" : fmtUSD(n);
+const genInv = () => `FAC-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 const daysUntil = (d) => { if (!d) return Infinity; return Math.ceil((new Date(d) - new Date()) / 86400000); };
 const expSt = (d) => { const x = daysUntil(d); if (x < 0) return "expired"; if (x <= 30) return "critical"; if (x <= 90) return "warning"; return "ok"; };
 
@@ -33,7 +37,6 @@ const Ic={
   box:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
   edit:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   trash:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>,
-  clock:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
   home:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
   receipt:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2-3-2z"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/></svg>,
   arrow:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
@@ -43,17 +46,30 @@ const Ic={
   zap:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   bar:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   leaf:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75"/></svg>,
+  print:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
 };
 
 /* ═══════ ONBOARDING TOUR ═══════ */
 const TOUR=[
   {target:".srch",title:"Rechercher",desc:"Tapez le nom d'un médicament, un code-barres ou une catégorie pour trouver rapidement un produit.",pos:"bottom"},
   {target:".bt-p",title:"Ajouter un médicament",desc:"Cliquez ici pour ajouter un nouveau médicament à votre inventaire.",pos:"bottom"},
+  {target:".cart-top",title:"Panier d'achats",desc:"Cliquez sur l'icône panier d'un médicament pour l'ajouter au panier. Le compteur indique le nombre d'articles. Cliquez ici pour finaliser la vente et générer une facture.",pos:"bottom"},
+  {target:".curr-toggle",title:"Devise USD / FC",desc:"Basculez entre le Dollar américain (USD) et le Franc Congolais (FC). Taux : 1 USD = 2 800 FC. Votre préférence est enregistrée automatiquement.",pos:"bottom"},
   {target:".stats",title:"Tableau de bord",desc:"Visualisez en un coup d'œil le total de médicaments, le stock, les alertes et les ventes du jour.",pos:"bottom"},
-  {target:".tc",title:"Inventaire",desc:"Votre liste complète. Cliquez sur les en-têtes pour trier. Utilisez les icônes pour vendre, réapprovisionner, modifier ou supprimer.",pos:"top"},
-  {target:".sb-nav",title:"Navigation",desc:"Accédez au tableau de bord, à l'inventaire, aux ventes et aux alertes depuis ce menu.",pos:"right"},
+  {target:".tc",title:"Inventaire",desc:"Votre liste complète. Cliquez sur les en-têtes pour trier. Utilisez les icônes pour ajouter au panier, réapprovisionner, modifier ou supprimer.",pos:"top"},
+  {target:".sb-nav",title:"Navigation",desc:"Accédez au tableau de bord, à l'inventaire, aux analytiques des ventes (graphiques, top 5, filtres) et aux alertes depuis ce menu.",pos:"right"},
 ];
-function Tour({onClose}){const[step,setStep]=useState(0);const[pos,setPos]=useState({top:0,left:0,width:0,height:0});useEffect(()=>{const u=()=>{const el=document.querySelector(TOUR[step].target);if(el){const r=el.getBoundingClientRect();setPos({top:r.top,left:r.left,width:r.width,height:r.height})}};u();window.addEventListener("resize",u);return()=>window.removeEventListener("resize",u)},[step]);const s=TOUR[step];const last=step===TOUR.length-1;const ts={position:"fixed",zIndex:1002,background:"#fff",borderRadius:14,padding:"20px 24px",width:320,boxShadow:"0 12px 40px rgba(15,76,42,0.18)",border:"1px solid rgba(30,140,78,0.1)",...(s.pos==="bottom"?{top:pos.top+pos.height+14,left:Math.max(10,pos.left+pos.width/2-160)}:s.pos==="top"?{top:pos.top-180,left:Math.max(10,pos.left+pos.width/2-160)}:{top:pos.top,left:pos.left+pos.width+14})};return(<><div style={{position:"fixed",inset:0,background:"rgba(15,76,42,0.35)",zIndex:1000}} onClick={onClose}/><div style={{position:"fixed",top:pos.top-4,left:pos.left-4,width:pos.width+8,height:pos.height+8,border:"3px solid #1A7F48",borderRadius:12,zIndex:1001,pointerEvents:"none",boxShadow:"0 0 0 4000px rgba(15,76,42,0.3)",transition:"all .3s ease"}}/><div style={ts}><div style={{fontSize:11,color:"#1A7F48",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Étape {step+1}/{TOUR.length}</div><div style={{fontSize:17,fontWeight:600,color:"#0F4C2A",marginBottom:6,fontFamily:"'Cormorant Garamond',serif"}}>{s.title}</div><div style={{fontSize:13,color:"#4A6B5A",lineHeight:1.6,marginBottom:16}}>{s.desc}</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><button onClick={onClose} style={{background:"none",border:"none",color:"#8AA69A",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif"}}>Passer</button><div style={{display:"flex",gap:8}}>{step>0&&<button onClick={()=>setStep(step-1)} style={{padding:"6px 14px",border:"1px solid #D4E4DB",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif"}}>Précédent</button>}<button onClick={()=>last?onClose():setStep(step+1)} style={{padding:"6px 16px",border:"none",borderRadius:8,background:"#1A7F48",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:500,fontFamily:"'Outfit',sans-serif"}}>{last?"Terminer":"Suivant"}</button></div></div></div></>)}
+function Tour({onClose}){
+  const[step,setStep]=useState(0);
+  const[pos,setPos]=useState({top:0,left:0,width:0,height:0});
+  useEffect(()=>{
+    const u=()=>{const el=document.querySelector(TOUR[step].target);if(el){const r=el.getBoundingClientRect();setPos({top:r.top,left:r.left,width:r.width,height:r.height})}};
+    u();window.addEventListener("resize",u);return()=>window.removeEventListener("resize",u);
+  },[step]);
+  const s=TOUR[step];const last=step===TOUR.length-1;
+  const ts={position:"fixed",zIndex:1002,background:"#fff",borderRadius:14,padding:"20px 24px",width:320,boxShadow:"0 12px 40px rgba(15,76,42,0.18)",border:"1px solid rgba(30,140,78,0.1)",...(s.pos==="bottom"?{top:pos.top+pos.height+14,left:Math.max(10,pos.left+pos.width/2-160)}:s.pos==="top"?{top:Math.max(10,pos.top-190),left:Math.max(10,pos.left+pos.width/2-160)}:{top:pos.top,left:pos.left+pos.width+14})};
+  return(<><div style={{position:"fixed",inset:0,background:"rgba(15,76,42,0.35)",zIndex:1000}} onClick={onClose}/><div style={{position:"fixed",top:pos.top-4,left:pos.left-4,width:pos.width+8,height:pos.height+8,border:"3px solid #1A7F48",borderRadius:12,zIndex:1001,pointerEvents:"none",boxShadow:"0 0 0 4000px rgba(15,76,42,0.3)",transition:"all .3s ease"}}/><div style={ts}><div style={{fontSize:11,color:"#1A7F48",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Étape {step+1}/{TOUR.length}</div><div style={{fontSize:17,fontWeight:600,color:"#0F4C2A",marginBottom:6,fontFamily:"'Cormorant Garamond',serif"}}>{s.title}</div><div style={{fontSize:13,color:"#4A6B5A",lineHeight:1.6,marginBottom:16}}>{s.desc}</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><button onClick={onClose} style={{background:"none",border:"none",color:"#8AA69A",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif"}}>Passer</button><div style={{display:"flex",gap:8}}>{step>0&&<button onClick={()=>setStep(step-1)} style={{padding:"6px 14px",border:"1px solid #D4E4DB",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif"}}>Précédent</button>}<button onClick={()=>last?onClose():setStep(step+1)} style={{padding:"6px 16px",border:"none",borderRadius:8,background:"#1A7F48",color:"#fff",cursor:"pointer",fontSize:12,fontWeight:500,fontFamily:"'Outfit',sans-serif"}}>{last?"Terminer":"Suivant"}</button></div></div></div></>);
+}
 
 /* ═══════════════════════════════════════
    LANDING PAGE
@@ -64,7 +80,7 @@ const LCSS=`
 .land{min-height:100vh;background:#FAFDF8;font-family:'Outfit',sans-serif;color:#1A2E23;overflow-x:hidden}
 .ln{position:fixed;top:0;left:0;right:0;z-index:50;padding:16px 48px;display:flex;align-items:center;justify-content:space-between;background:rgba(250,253,248,0.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(30,140,78,0.06)}
 .ln-logo{display:flex;align-items:center;gap:12px}
-.ln-logo img{height:42px;border-radius:8px}
+.ln-logo img{height:42px;border-radius:8px;object-fit:contain}
 .ln-logo h1{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#0F4C2A;line-height:1.1}
 .ln-logo span{display:block;font-family:'Outfit',sans-serif;font-size:9px;color:#5A8A6A;letter-spacing:2px;text-transform:uppercase;font-weight:500}
 .ln-r{display:flex;align-items:center;gap:28px}
@@ -127,12 +143,11 @@ const LCSS=`
 @keyframes fu{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .fade-in{animation:fu .6s ease both}.d1{animation-delay:.1s}.d2{animation-delay:.2s}.d3{animation-delay:.3s}.d4{animation-delay:.4s}.d5{animation-delay:.5s}.d6{animation-delay:.6s}
 .pg-out{animation:pgo .4s ease forwards}@keyframes pgo{to{opacity:0;transform:scale(.98)}}
-
-/* AUTH MODAL */
 .auth-overlay{position:fixed;inset:0;background:rgba(15,76,42,0.5);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;animation:fi .2s}
 .auth-box{background:#fff;border-radius:20px;width:420px;max-width:95vw;padding:36px;box-shadow:0 20px 60px rgba(15,76,42,0.15);animation:su .25s;position:relative}
-.auth-box h3{font-family:'Cormorant Garamond',serif;font-size:26px;color:#0F4C2A;margin-bottom:4px}
-.auth-box .sub{font-size:13px;color:#5A8A6A;margin-bottom:24px;font-weight:300}
+.auth-logo{display:block;margin:0 auto 18px;height:56px;border-radius:10px;object-fit:contain}
+.auth-box h3{font-family:'Cormorant Garamond',serif;font-size:26px;color:#0F4C2A;margin-bottom:4px;text-align:center}
+.auth-box .sub{font-size:13px;color:#5A8A6A;margin-bottom:24px;font-weight:300;text-align:center}
 .auth-fi{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
 .auth-fi label{font-size:10px;font-weight:600;color:#4A6B5A;text-transform:uppercase;letter-spacing:.5px}
 .auth-fi input{padding:10px 13px;border:1px solid #D4E4DB;border-radius:9px;font-size:13px;font-family:'Outfit',sans-serif;outline:none;transition:.2s;color:#1A2E23}
@@ -147,7 +162,6 @@ const LCSS=`
 .auth-err{background:#FEF2F2;color:#991B1B;padding:9px 12px;border-radius:7px;font-size:12px;margin-bottom:12px;border:1px solid rgba(239,68,68,0.15)}
 .auth-ok{background:#ECFDF5;color:#065F46;padding:9px 12px;border-radius:7px;font-size:12px;margin-bottom:12px;border:1px solid rgba(16,185,129,0.15)}
 .auth-close{position:absolute;top:14px;right:14px;background:none;border:none;color:#8AA69A;cursor:pointer}
-
 @keyframes fi{from{opacity:0}to{opacity:1}}@keyframes su{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:900px){.ln{padding:12px 18px}.ln-r a{display:none}.hero{padding:90px 18px 50px}.hero-in{flex-direction:column;gap:36px}.hero-vis{width:100%}.lfloat{display:none}.feat{padding:50px 18px}.fgrid{grid-template-columns:1fr}.lbot{padding:36px 18px}.lbot-box{padding:36px 20px}}
 `;
@@ -156,19 +170,16 @@ function LandingPage({onAuth}){
   const[showAuth,setShowAuth]=useState(false);
   const[authMode,setAuthMode]=useState("login");
   const[exiting,setExiting]=useState(false);
-
   const openAuth=(mode)=>{setAuthMode(mode);setShowAuth(true)};
-
   return(<><style>{LCSS}</style><div className={`land ${exiting?"pg-out":""}`}>
     <nav className="ln">
-      <div className="ln-logo"><img src="/logo.jpg" alt="Speranza" style={{height:40,borderRadius:8}} onError={(e)=>{e.target.style.display='none'}}/><div><h1>Speranza Della Pharma</h1><span>Système d'Inventaire</span></div></div>
+      <div className="ln-logo"><img src={LOGO} alt="Speranza" onError={e=>{e.target.style.display='none'}}/><div><h1>Speranza Della Pharma</h1><span>Système d'Inventaire</span></div></div>
       <div className="ln-r">
         <a href="#features">Fonctionnalités</a>
         <a href="#start">Commencer</a>
         <button className="lbtn" onClick={()=>openAuth("login")}>Se connecter {Ic.arrow({size:15})}</button>
       </div>
     </nav>
-
     <section className="hero"><div className="hero-in">
       <div className="hero-txt">
         <div className="lbadge"><span className="dot"></span> Gestion pharmaceutique simplifiée</div>
@@ -193,21 +204,19 @@ function LandingPage({onAuth}){
         <div className="lfloat lf2"><div>{Ic.zap({size:16,color:"#F59E0B"})}</div><div className="fn">&lt; 1s</div><div className="fl">Recherche</div></div>
       </div>
     </div></section>
-
     <section className="feat" id="features">
       <div className="slbl">Pourquoi Speranza</div>
       <div className="stitle">Tout ce dont votre pharmacie a besoin</div>
       <div className="ssub">Un outil complet pour gérer votre inventaire, suivre les ventes et anticiper les expirations — depuis un seul écran.</div>
       <div className="fgrid">
         <div className="fcard fade-in d1"><div className="ficon g1">{Ic.search({size:20})}</div><h3>Recherche instantanée</h3><p>Trouvez n'importe quel médicament par nom, code-barres ou catégorie en millisecondes.</p></div>
-        <div className="fcard fade-in d2"><div className="ficon g2">{Ic.cart({size:20})}</div><h3>Ventes en un clic</h3><p>Traitez les ventes instantanément avec déduction automatique du stock.</p></div>
+        <div className="fcard fade-in d2"><div className="ficon g2">{Ic.cart({size:20})}</div><h3>Panier & Facturation</h3><p>Ajoutez plusieurs médicaments au panier, confirmez la vente et imprimez une facture en un clic.</p></div>
         <div className="fcard fade-in d3"><div className="ficon g3">{Ic.alert({size:20})}</div><h3>Alertes intelligentes</h3><p>Soyez notifié des stocks faibles et des médicaments proches de l'expiration.</p></div>
         <div className="fcard fade-in d4"><div className="ficon g1">{Ic.upload({size:20})}</div><h3>Import & Export CSV</h3><p>Importez votre inventaire depuis un tableur. Exportez à tout moment.</p></div>
-        <div className="fcard fade-in d5"><div className="ficon g2">{Ic.bar({size:20})}</div><h3>Historique des ventes</h3><p>Suivez le chiffre d'affaires quotidien et l'historique complet des transactions.</p></div>
-        <div className="fcard fade-in d6"><div className="ficon g3">{Ic.leaf({size:20})}</div><h3>Fait sur mesure</h3><p>Conçu spécialement pour Speranza Della Pharma. Votre marque, votre système.</p></div>
+        <div className="fcard fade-in d5"><div className="ficon g2">{Ic.bar({size:20})}</div><h3>Analytique avancée</h3><p>Graphiques de revenus, top médicaments et filtres par période (jour, semaine, mois).</p></div>
+        <div className="fcard fade-in d6"><div className="ficon g3">{Ic.leaf({size:20})}</div><h3>USD & Franc Congolais</h3><p>Basculez entre USD et FC à tout moment. Taux de conversion intégré.</p></div>
       </div>
     </section>
-
     <section className="lbot" id="start">
       <div className="lbot-box">
         <h3>Prêt à prendre le contrôle ?</h3>
@@ -215,9 +224,7 @@ function LandingPage({onAuth}){
         <button className="lbot-cta" onClick={()=>openAuth("signup")}>Lancer le tableau de bord {Ic.arrow({size:16,color:"#0F4C2A"})}</button>
       </div>
     </section>
-
     <footer className="lfooter"><p>Speranza Della Pharma — Système de Gestion d'Inventaire · Conçu avec soin</p></footer>
-
     {showAuth&&<AuthModal mode={authMode} setMode={setAuthMode} onClose={()=>setShowAuth(false)} onAuth={onAuth}/>}
   </div></>);
 }
@@ -227,7 +234,6 @@ function AuthModal({mode,setMode,onClose,onAuth}){
   const[email,setEmail]=useState("");const[pass,setPass]=useState("");const[name,setName]=useState("");
   const[loading,setLoading]=useState(false);const[error,setError]=useState("");const[success,setSuccess]=useState("");
   const[forgot,setForgot]=useState(false);
-
   const handleSubmit=async()=>{
     setError("");setSuccess("");setLoading(true);
     try{
@@ -253,10 +259,10 @@ function AuthModal({mode,setMode,onClose,onAuth}){
     }
     setLoading(false);
   };
-
   return(
     <div className="auth-overlay" onClick={onClose}><div className="auth-box" onClick={e=>e.stopPropagation()}>
       <button className="auth-close" onClick={onClose}>{Ic.x({size:18})}</button>
+      <img src={LOGO} alt="Speranza" className="auth-logo" onError={e=>{e.target.style.display='none'}}/>
       <h3>{forgot?"Mot de passe oublié":mode==="login"?"Connexion":"Créer un compte"}</h3>
       <p className="sub">{forgot?"Entrez votre e-mail pour recevoir un lien de réinitialisation.":mode==="login"?"Connectez-vous pour accéder à votre inventaire.":"Inscrivez-vous pour commencer."}</p>
       {error&&<div className="auth-err">{error}</div>}
@@ -306,6 +312,9 @@ const DCSS=`
 .bt-ok{background:var(--ok);color:#fff}.bt-ok:hover{background:#0D9668}
 .bt-g{background:transparent;color:var(--t2);border:none;padding:4px 6px}.bt-g:hover{background:var(--bg);color:var(--t)}
 .bt-sm{padding:3px 7px;font-size:11px}
+.curr-toggle{font-size:11px;font-weight:600;letter-spacing:.3px;padding:5px 11px}
+.cart-top{position:relative;padding:5px 9px}
+.cart-badge{position:absolute;top:-5px;right:-5px;background:var(--d);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;line-height:1}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:14px}
 .stc{background:var(--card);border-radius:var(--r);padding:14px;border:1px solid var(--bd2);box-shadow:var(--sh);display:flex;align-items:flex-start;gap:10px}
 .sti{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -354,16 +363,47 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .ld-ov{position:fixed;inset:0;background:rgba(250,253,248,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50}
 .spin{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:sp 1s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
+.period-tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
+.an-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:14px}
+.chart-wrap{background:var(--card);border-radius:var(--r);border:1px solid var(--bd2);box-shadow:var(--sh);padding:14px 14px 8px;margin-bottom:14px}
+.chart-inner{display:flex;align-items:flex-end;gap:3px;height:90px;padding:0 2px}
+.chart-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.chart-bar{width:100%;border-radius:3px 3px 0 0;background:linear-gradient(180deg,#1A7F48,#0F4C2A);transition:height .3s ease;min-height:0}
+.chart-lbl{font-size:7px;color:var(--t3);text-align:center;line-height:1;white-space:nowrap}
+.top5-row{display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--bd2);font-size:12px;gap:6px}
+.top5-row:last-child{border-bottom:none}
+.inv-row{border-bottom:1px solid var(--bd2)}
+.inv-header{padding:6px 12px;background:#FAFCFB;display:flex;justify-content:space-between;align-items:center;font-size:11px}
+.inv-item{padding:4px 12px 4px 24px;display:flex;justify-content:space-between;font-size:11px;color:var(--t2)}
+.cart-item-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd2);gap:8px}
+.cart-item-row:last-child{border-bottom:none}
+.qty-ctrl{display:flex;align-items:center;gap:4px}
+.qty-ctrl button{width:24px;height:24px;border-radius:5px;border:1px solid var(--bd);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--t2);line-height:1;transition:.1s}
+.qty-ctrl button:hover:not(:disabled){background:var(--al);border-color:var(--ac);color:var(--ac)}
+.qty-ctrl button:disabled{opacity:.35;cursor:not-allowed}
+.qty-ctrl span{min-width:28px;text-align:center;font-size:13px;font-weight:600}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
-@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
+@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
 `;
+
+/* ═══════ BAR CHART ═══════ */
+function BarChart({data,fmt}){
+  if(!data||!data.length)return<div className="emp" style={{height:90}}><p>Aucune donnée</p></div>;
+  const max=Math.max(...data.map(d=>d.value),1);
+  return(<div className="chart-inner">{data.map((d,i)=>{const pct=Math.max(0,Math.round((d.value/max)*88));return(<div key={i} className="chart-bar-wrap"><div className="chart-bar" style={{height:pct||2}} title={fmt?fmt(d.value):d.value}/><div className="chart-lbl">{d.label}</div></div>)})}</div>);
+}
 
 /* ═══════ DASHBOARD ═══════ */
 function DashApp({session,onLogout}){
   const[drugs,setDrugs]=useState([]);const[sales,setSales]=useState([]);const[page,setPage]=useState("dashboard");
   const[search,setSearch]=useState("");const[toast,setToast]=useState(null);const[modal,setModal]=useState(null);
   const[loading,setLoading]=useState(true);const[showTour,setShowTour]=useState(false);
+  const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);
+  const[currency,setCurrency]=useState(()=>localStorage.getItem("sp_currency")||"USD");
   const fileRef=useRef(null);const uid=session.user.id;
+
+  const fmt=useCallback((n)=>fmtAmt(n,currency),[currency]);
+  const toggleCurrency=()=>{const nx=currency==="USD"?"FC":"USD";setCurrency(nx);localStorage.setItem("sp_currency",nx)};
 
   useEffect(()=>{const ld=async()=>{setLoading(true);
     const{data:d}=await supabase.from("drugs").select("*").eq("user_id",uid).order("name");
@@ -377,11 +417,38 @@ function DashApp({session,onLogout}){
   const rlD=async()=>{const{data}=await supabase.from("drugs").select("*").eq("user_id",uid).order("name");setDrugs(data||[])};
   const rlS=async()=>{const{data}=await supabase.from("sales").select("*").eq("user_id",uid).order("created_at",{ascending:false});setSales(data||[])};
 
+  const addToCart=(drug)=>{
+    setCart(prev=>{const ex=prev.find(i=>i.drug.id===drug.id);if(ex)return prev.map(i=>i.drug.id===drug.id?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]});
+    t2(`${drug.name} ajouté au panier`);
+  };
+
   const hAdd=async(drug)=>{const{error}=await supabase.from("drugs").insert({...drug,user_id:uid});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
   const hEdit=async(drug)=>{const{id,user_id,created_at,updated_at,...rest}=drug;const{error}=await supabase.from("drugs").update({...rest,updated_at:new Date().toISOString()}).eq("id",id);if(error){t2("Erreur","er");return}await rlD();t2(`${drug.name} modifié`);setModal(null)};
   const hDel=async(id)=>{const d=drugs.find(x=>x.id===id);if(!window.confirm(`Supprimer "${d?.name}" ?`))return;await supabase.from("sales").delete().eq("drug_id",id);await supabase.from("drugs").delete().eq("id",id);await rlD();await rlS();t2(`${d?.name} supprimé`,"er")};
-  const hSell=async(did,qty)=>{const d=drugs.find(x=>x.id===did);if(!d||qty<1||qty>d.stock)return;const sl={user_id:uid,drug_id:did,drug_name:d.name,qty,unit_price:d.price,total:qty*d.price,sale_date:today(),sale_time:new Date().toLocaleTimeString()};const{error:e1}=await supabase.from("sales").insert(sl);const{error:e2}=await supabase.from("drugs").update({stock:d.stock-qty}).eq("id",did);if(e1||e2){t2("Erreur","er");return}await rlD();await rlS();t2(`${qty}x ${d.name} — ${fmtUSD(sl.total)}`);setModal(null)};
   const hRes=async(did,qty)=>{const d=drugs.find(x=>x.id===did);if(!d||qty<1)return;const{error}=await supabase.from("drugs").update({stock:d.stock+qty}).eq("id",did);if(error){t2("Erreur","er");return}await rlD();t2(`+${qty} ${d.name}`);setModal(null)};
+
+  const hCartSell=async(cartItems,customerName)=>{
+    const invNum=genInv();
+    const salesData=cartItems.map(item=>({
+      user_id:uid,drug_id:item.drug.id,drug_name:item.drug.name,
+      qty:item.qty,unit_price:item.drug.price,total:item.qty*item.drug.price,
+      sale_date:today(),sale_time:new Date().toLocaleTimeString(),
+      invoice_number:invNum,customer_name:customerName||null,
+    }));
+    let{error}=await supabase.from("sales").insert(salesData);
+    if(error&&(error.message.includes("column")||error.code==="PGRST204")){
+      const basic=salesData.map(({invoice_number,customer_name,...r})=>r);
+      const res=await supabase.from("sales").insert(basic);error=res.error;
+    }
+    if(error){t2("Erreur: "+error.message,"er");return}
+    for(const item of cartItems){const d=drugs.find(x=>x.id===item.drug.id);if(d)await supabase.from("drugs").update({stock:d.stock-item.qty}).eq("id",item.drug.id)}
+    await rlD();await rlS();
+    const total=cartItems.reduce((s,i)=>s+i.drug.price*i.qty,0);
+    setInvoice({number:invNum,date:today(),customer:customerName,items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),total});
+    setCart([]);setShowCart(false);
+    t2(`Vente confirmée · ${fmt(total)}`);
+  };
+
   const hCSV=async(text)=>{try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
   const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
 
@@ -391,15 +458,16 @@ function DashApp({session,onLogout}){
   const wrn=drugs.filter(d=>expSt(d.expiry_date)==="warning");const ac=low.length+out.length+ex.length;
   const tsl=sales.filter(s=>s.sale_date===today()),tr=tsl.reduce((s,sl)=>s+Number(sl.total),0);
   const flt=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.barcode&&d.barcode.includes(q))||(d.category&&d.category.toLowerCase().includes(q))});
+  const cartCount=cart.reduce((s,i)=>s+i.qty,0);
 
-  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Ventes",icon:Ic.receipt},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null}];
-  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Historique des ventes",alerts:"Alertes & Expiration"};
+  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null}];
+  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration"};
 
   if(loading)return(<><style>{DCSS}</style><div className="ld-ov"><div className="spin"/><p style={{marginTop:12,color:'#4A6B5A',fontSize:12}}>Chargement...</p></div></>);
 
   return(<><style>{DCSS}</style><div className="app">
     <aside className="sb">
-      <div className="sb-brand"><img src="/logo.jpg" alt="S" className="sb-brand-logo" onError={e=>{e.target.style.display='none'}}/><div><h1>Speranza Della Pharma</h1><span>Système d'Inventaire</span></div></div>
+      <div className="sb-brand"><img src={LOGO} alt="S" className="sb-brand-logo" onError={e=>{e.target.style.display='none'}}/><div><h1>Speranza Della Pharma</h1><span>Système d'Inventaire</span></div></div>
       <nav className="sb-nav">
         <div className="sb-lbl">Menu</div>
         {nav.map(n=><button key={n.id} className={`sb-btn ${page===n.id?"on":""}`} onClick={()=>setPage(n.id)}>{n.icon({size:15})}<span>{n.label}</span>{n.badge&&<span className="badge">{n.badge}</span>}</button>)}
@@ -414,47 +482,257 @@ function DashApp({session,onLogout}){
         <div className="top-a">
           {(page==="dashboard"||page==="inventory")&&<div className="srch"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)}/></div>}
           {(page==="dashboard"||page==="inventory")&&<button className="bt bt-p" onClick={()=>setModal({type:"add"})}>{Ic.plus({size:13})} Ajouter</button>}
+          <button className="bt bt-s curr-toggle" onClick={toggleCurrency} title={`Basculer vers ${currency==="USD"?"FC":"USD"}`}>{currency==="USD"?"$ USD":"FC"}</button>
+          <button className="bt bt-s cart-top" onClick={()=>setShowCart(true)} title="Voir le panier">{Ic.cart({size:15})}{cartCount>0&&<span className="cart-badge">{cartCount}</span>}</button>
           <button className="bt bt-g" onClick={()=>setShowTour(true)} title="Guide">{Ic.help({size:15})}</button>
           <button className="bt bt-g" onClick={onLogout} title="Déconnexion" style={{color:'var(--d)'}}>{Ic.logout({size:15})}</button>
         </div>
       </header>
       <div className="cnt">
-        {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmtUSD(tr)})</span></div></div></div></div><DT drugs={flt} onSell={d=>setModal({type:"sell",drug:d})} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/></>}
-        {page==="inventory"&&<DT drugs={flt} onSell={d=>setModal({type:"sell",drug:d})} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
-        {page==="sales"&&<SP sales={sales}/>}
+        {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmt(tr)})</span></div></div></div></div><DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/></>}
+        {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
+        {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
       </div>
     </main>
     {modal?.type==="add"&&<DF title="Ajouter un médicament" onClose={()=>setModal(null)} onSave={hAdd}/>}
     {modal?.type==="edit"&&<DF title="Modifier" drug={modal.drug} onClose={()=>setModal(null)} onSave={hEdit}/>}
-    {modal?.type==="sell"&&<SM drug={modal.drug} onClose={()=>setModal(null)} onSell={hSell}/>}
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
+    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onClose={()=>setShowCart(false)} fmt={fmt}/>}
+    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmt}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
   </div></>);
 }
 
-/* ═══════ TABLE + MODALS ═══════ */
-function DT({drugs,onSell,onEdit,onRes,onDel}){const[sk,setSk]=useState("name");const[sd,setSd]=useState(1);const sort=k=>{if(sk===k)setSd(-sd);else{setSk(k);setSd(1)}};const sorted=[...drugs].sort((a,b)=>{let va=a[sk],vb=b[sk];if(typeof va==="string"){va=(va||"").toLowerCase();vb=(vb||"").toLowerCase()}return va<vb?-sd:va>vb?sd:0});const SA=({col})=>sk===col?<span style={{marginLeft:2,fontSize:8}}>{sd===1?"▲":"▼"}</span>:null;return(<div className="tc"><div className="th2"><h3>Inventaire</h3><span style={{fontSize:10,color:'var(--t3)'}}>{drugs.length} articles</span></div>{!drugs.length?<div className="emp">{Ic.pill({size:28,color:'var(--t3)'})}<p>Aucun médicament trouvé.</p></div>:<div className="ts"><table><thead><tr><th onClick={()=>sort("name")}>Nom<SA col="name"/></th><th onClick={()=>sort("barcode")}>Code<SA col="barcode"/></th><th onClick={()=>sort("category")}>Catégorie<SA col="category"/></th><th onClick={()=>sort("stock")}>Stock<SA col="stock"/></th><th onClick={()=>sort("price")}>Prix<SA col="price"/></th><th onClick={()=>sort("expiry_date")}>Exp.<SA col="expiry_date"/></th><th>Actions</th></tr></thead><tbody>{sorted.map(d=>{const ss=d.stock===0?"crit":d.stock<=(d.min_stock||20)?"low":"ok";const es=expSt(d.expiry_date);return(<tr key={d.id}><td><div className="dn">{d.name}</div>{d.supplier&&<div style={{fontSize:9,color:'var(--t3)'}}>{d.supplier}</div>}</td><td><span className="db">{d.barcode||"—"}</span></td><td><span className="ct">{d.category||"Général"}</span></td><td><span className={`sb-stock ${ss}`}>{d.stock===0?"Épuisé":d.stock}</span></td><td style={{fontWeight:500}}>{fmtUSD(d.price)}</td><td>{d.expiry_date?<span className={`eb ${es}`}>{es==="expired"?"EXPIRÉ":d.expiry_date}</span>:"—"}</td><td><div className="ac-c"><button className="bt bt-g bt-sm" onClick={()=>onSell(d)} disabled={d.stock===0} title="Vendre">{Ic.cart({size:12})}</button><button className="bt bt-g bt-sm" onClick={()=>onRes(d)} title="Réappro.">{Ic.plus({size:12})}</button><button className="bt bt-g bt-sm" onClick={()=>onEdit(d)} title="Modifier">{Ic.edit({size:12})}</button><button className="bt bt-g bt-sm" onClick={()=>onDel(d.id)} style={{color:'var(--d)'}} title="Supprimer">{Ic.trash({size:12})}</button></div></td></tr>)})}</tbody></table></div>}</div>)}
+/* ═══════ DRUG TABLE ═══════ */
+function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel}){
+  const[sk,setSk]=useState("name");const[sd,setSd]=useState(1);
+  const sort=k=>{if(sk===k)setSd(-sd);else{setSk(k);setSd(1)}};
+  const sorted=[...drugs].sort((a,b)=>{let va=a[sk],vb=b[sk];if(typeof va==="string"){va=(va||"").toLowerCase();vb=(vb||"").toLowerCase()}return va<vb?-sd:va>vb?sd:0});
+  const SA=({col})=>sk===col?<span style={{marginLeft:2,fontSize:8}}>{sd===1?"▲":"▼"}</span>:null;
+  return(<div className="tc"><div className="th2"><h3>Inventaire</h3><span style={{fontSize:10,color:'var(--t3)'}}>{drugs.length} articles</span></div>
+    {!drugs.length?<div className="emp">{Ic.pill({size:28,color:'var(--t3)'})}<p>Aucun médicament trouvé.</p></div>:
+    <div className="ts"><table><thead><tr>
+      <th onClick={()=>sort("name")}>Nom<SA col="name"/></th>
+      <th onClick={()=>sort("barcode")}>Code<SA col="barcode"/></th>
+      <th onClick={()=>sort("category")}>Catégorie<SA col="category"/></th>
+      <th onClick={()=>sort("stock")}>Stock<SA col="stock"/></th>
+      <th onClick={()=>sort("price")}>Prix<SA col="price"/></th>
+      <th onClick={()=>sort("expiry_date")}>Exp.<SA col="expiry_date"/></th>
+      <th>Actions</th>
+    </tr></thead><tbody>{sorted.map(d=>{
+      const ss=d.stock===0?"crit":d.stock<=(d.min_stock||20)?"low":"ok";
+      const es=expSt(d.expiry_date);
+      return(<tr key={d.id}>
+        <td><div className="dn">{d.name}</div>{d.supplier&&<div style={{fontSize:9,color:'var(--t3)'}}>{d.supplier}</div>}</td>
+        <td><span className="db">{d.barcode||"—"}</span></td>
+        <td><span className="ct">{d.category||"Général"}</span></td>
+        <td><span className={`sb-stock ${ss}`}>{d.stock===0?"Épuisé":d.stock}</span></td>
+        <td style={{fontWeight:500}}>{fmt(d.price)}</td>
+        <td>{d.expiry_date?<span className={`eb ${es}`}>{es==="expired"?"EXPIRÉ":d.expiry_date}</span>:"—"}</td>
+        <td><div className="ac-c">
+          <button className="bt bt-g bt-sm" onClick={()=>onAddToCart(d)} disabled={d.stock===0} title="Ajouter au panier" style={{color:d.stock>0?'var(--ac)':undefined}}>{Ic.cart({size:12})}</button>
+          <button className="bt bt-g bt-sm" onClick={()=>onRes(d)} title="Réappro.">{Ic.plus({size:12})}</button>
+          <button className="bt bt-g bt-sm" onClick={()=>onEdit(d)} title="Modifier">{Ic.edit({size:12})}</button>
+          <button className="bt bt-g bt-sm" onClick={()=>onDel(d.id)} style={{color:'var(--d)'}} title="Supprimer">{Ic.trash({size:12})}</button>
+        </div></td>
+      </tr>);
+    })}</tbody></table></div>}
+  </div>);
+}
 
-function SP({sales}){const g={};sales.forEach(s=>{const d=s.sale_date||today();if(!g[d])g[d]=[];g[d].push(s)});const dates=Object.keys(g).sort().reverse();return(<div className="tc"><div className="th2"><h3>Historique</h3><span style={{fontSize:10,color:'var(--t3)'}}>{sales.length} transactions</span></div>{!sales.length?<div className="emp">{Ic.receipt({size:28,color:'var(--t3)'})}<p>Aucune vente</p></div>:dates.map(d=>(<div key={d}><div style={{padding:'6px 12px',background:'#FAFCFB',fontWeight:600,fontSize:10,color:'var(--t3)',textTransform:'uppercase',letterSpacing:.5,borderBottom:'1px solid var(--bd2)'}}>{new Date(d+"T00:00").toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}<span style={{float:'right',color:'var(--ac)',fontWeight:700}}>{fmtUSD(g[d].reduce((s,sl)=>s+Number(sl.total),0))}</span></div>{g[d].map(s=>(<div key={s.id} className="sli"><div><span style={{fontWeight:500}}>{s.drug_name}</span><span style={{color:'var(--t3)',marginLeft:4}}>x{s.qty}</span></div><div style={{display:'flex',alignItems:'center',gap:10}}><span style={{fontSize:9,color:'var(--t3)'}}>{s.sale_time}</span><span style={{fontWeight:600,color:'var(--ok)'}}>{fmtUSD(s.total)}</span></div></div>))}</div>))}</div>)}
+/* ═══════ CART MODAL ═══════ */
+function CartModal({cart,setCart,onConfirm,onClose,fmt}){
+  const[customer,setCustomer]=useState("");
+  const upd=(id,qty)=>setCart(prev=>qty<1?prev.filter(i=>i.drug.id!==id):prev.map(i=>i.drug.id===id?{...i,qty:Math.min(qty,i.drug.stock)}:i));
+  const total=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
+  const totalQty=cart.reduce((s,i)=>s+i.qty,0);
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:520}}>
+    <div className="mo-h"><h3>Panier {cart.length>0&&`(${totalQty} article${totalQty!==1?"s":""})`}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
+    <div className="mo-b">
+      {cart.length===0?<div className="emp">{Ic.cart({size:28,color:'var(--t3)'})}<p>Le panier est vide. Ajoutez des médicaments depuis l'inventaire.</p></div>:
+      <><div>{cart.map(item=><div key={item.drug.id} className="cart-item-row">
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:12}}>{item.drug.name}</div><div style={{fontSize:10,color:'var(--t3)'}}>{fmt(item.drug.price)}/u · max {item.drug.stock}</div></div>
+        <div className="qty-ctrl">
+          <button onClick={()=>upd(item.drug.id,item.qty-1)}>−</button>
+          <span>{item.qty}</span>
+          <button onClick={()=>upd(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
+        </div>
+        <div style={{minWidth:70,textAlign:'right',fontWeight:600,fontSize:12,color:'var(--ok)'}}>{fmt(item.drug.price*item.qty)}</div>
+        <button className="bt bt-g bt-sm" onClick={()=>upd(item.drug.id,0)} style={{color:'var(--d)'}}>{Ic.trash({size:11})}</button>
+      </div>)}</div>
+      <div className="fi" style={{marginTop:12}}><label>Nom du client (optionnel)</label><input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Ex: Jean Mukendi"/></div>
+      <div className="ss"><div className="ssr"><span>Articles</span><span>{totalQty} unité{totalQty!==1?"s":""}</span></div><div className="ssr tot"><span>Total</span><span>{fmt(total)}</span></div></div></>}
+    </div>
+    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Fermer</button><button className="bt bt-ok" onClick={()=>onConfirm(cart,customer)} disabled={cart.length===0}>{Ic.check({size:12})} Confirmer · {fmt(total)}</button></div>
+  </div></div>);
+}
 
+/* ═══════ INVOICE MODAL ═══════ */
+function InvoiceModal({invoice,onClose,fmt}){
+  const printInvoice=()=>{
+    const win=window.open("","_blank");
+    const rows=invoice.items.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fmtUSD(i.unit_price)}</td><td style="text-align:right">${fmtUSD(i.total)}</td></tr>`).join("");
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facture ${invoice.number}</title><style>
+body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;color:#1A2E23;font-size:13px}
+h1{color:#0F4C2A;font-size:24px;margin-bottom:2px}.sub{color:#5A8A6A;font-size:11px;margin-bottom:20px}
+.meta{display:flex;justify-content:space-between;margin-bottom:20px;padding:12px;background:#F4F7F5;border-radius:8px;font-size:12px}
+.meta strong{color:#0F4C2A}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+th{background:#0F4C2A;color:#fff;padding:8px 10px;text-align:left;font-size:11px}
+td{padding:8px 10px;border-bottom:1px solid #E8F0EC}
+.total-row td{font-weight:700;font-size:14px;border-top:2px solid #1A7F48;border-bottom:none;background:#F4F7F5}
+.footer{text-align:center;margin-top:30px;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;padding-top:14px}
+@media print{body{margin:20px}}
+</style></head><body>
+<h1>Speranza Della Pharma</h1><p class="sub">Système de Gestion Pharmaceutique</p>
+<div class="meta"><div><strong>Facture N° :</strong> ${invoice.number}<br/><strong>Date :</strong> ${invoice.date}</div><div style="text-align:right"><strong>Client :</strong> ${invoice.customer||"Client de passage"}</div></div>
+<table><thead><tr><th>Médicament</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
+<tbody>${rows}<tr class="total-row"><td colspan="3">Total</td><td style="text-align:right">${fmtUSD(invoice.total)}</td></tr></tbody></table>
+<div class="footer">Merci pour votre confiance · Speranza Della Pharma</div>
+</body></html>`);
+    win.document.close();setTimeout(()=>win.print(),300);
+  };
+  return(<div className="mo-bk"><div className="mo" onClick={e=>e.stopPropagation()} style={{width:500}}>
+    <div className="mo-h"><h3>{Ic.receipt({size:15})} Facture {invoice.number}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
+    <div className="mo-b">
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:12,fontSize:12,background:'var(--bg)',borderRadius:'var(--rs)',padding:'8px 10px'}}>
+        <span style={{color:'var(--t3)'}}>Date : <strong style={{color:'var(--t)'}}>{invoice.date}</strong></span>
+        {invoice.customer&&<span style={{color:'var(--t3)'}}>Client : <strong style={{color:'var(--t)'}}>{invoice.customer}</strong></span>}
+      </div>
+      {invoice.items.map((item,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--bd2)',fontSize:12}}>
+        <span style={{fontWeight:500}}>{item.drug_name} <span style={{color:'var(--t3)',fontWeight:400}}>×{item.qty}</span></span>
+        <span style={{fontWeight:600,color:'var(--ok)'}}>{fmt(item.total)}</span>
+      </div>)}
+      <div className="ss"><div className="ssr tot"><span>Total</span><span>{fmt(invoice.total)}</span></div></div>
+      <div style={{fontSize:10,color:'var(--t3)',marginTop:8,textAlign:'center'}}>L'impression s'effectue toujours en USD</div>
+    </div>
+    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Fermer</button><button className="bt bt-p" onClick={printInvoice}>{Ic.print({size:12})} Imprimer la facture</button></div>
+  </div></div>);
+}
+
+/* ═══════ ANALYTICS PAGE ═══════ */
+function AnalyticsPage({sales,fmt}){
+  const[period,setPeriod]=useState("7d");
+  const getStart=p=>{const n=new Date();const d={today:0,"7d":7,"14d":14,"30d":30,"3m":90}[p]||7;if(p==="today")return today();return new Date(n-d*864e5).toISOString().split("T")[0]};
+  const start=getStart(period);
+  const filtered=sales.filter(s=>(s.sale_date||"")>=start);
+  const revenue=filtered.reduce((s,sl)=>s+Number(sl.total),0);
+  const itemsSold=filtered.reduce((s,sl)=>s+Number(sl.qty),0);
+  const invKeys=[...new Set(filtered.map(s=>s.invoice_number||s.id))];
+  const avgBasket=invKeys.length>0?revenue/invKeys.length:0;
+
+  const dayMap={};filtered.forEach(s=>{const d=s.sale_date||today();dayMap[d]=(dayMap[d]||0)+Number(s.total)});
+  const chartDays=Object.keys(dayMap).sort().slice(-14);
+  const chartData=chartDays.map(d=>({label:new Date(d+"T00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}),value:dayMap[d]}));
+
+  const drugMap={};filtered.forEach(s=>{if(!drugMap[s.drug_name])drugMap[s.drug_name]={qty:0,revenue:0};drugMap[s.drug_name].qty+=Number(s.qty);drugMap[s.drug_name].revenue+=Number(s.total)});
+  const top5=Object.entries(drugMap).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
+
+  const grouped={};filtered.forEach(s=>{const k=s.invoice_number||s.id;if(!grouped[k])grouped[k]={date:s.sale_date,time:s.sale_time,customer:s.customer_name,items:[],total:0};grouped[k].items.push(s);grouped[k].total+=Number(s.total)});
+  const sortedInv=Object.entries(grouped).sort((a,b)=>(b[1].date||"").localeCompare(a[1].date||""));
+
+  const ps=[{k:"today",l:"Aujourd'hui"},{k:"7d",l:"7 jours"},{k:"14d",l:"14 jours"},{k:"30d",l:"30 jours"},{k:"3m",l:"3 mois"}];
+  return(<div>
+    <div className="period-tabs">{ps.map(p=><button key={p.k} className={`bt ${period===p.k?"bt-p":"bt-s"}`} onClick={()=>setPeriod(p.k)}>{p.l}</button>)}</div>
+    <div className="an-grid">
+      <div className="stc"><div className="sti g">{Ic.receipt({size:15})}</div><div className="stv"><div className="l">Chiffre d'affaires</div><div className="v" style={{fontSize:16}}>{fmt(revenue)}</div></div></div>
+      <div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Articles vendus</div><div className="v">{itemsSold}</div></div></div>
+      <div className="stc"><div className="sti am">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Panier moyen</div><div className="v" style={{fontSize:16}}>{fmt(avgBasket)}</div></div></div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+      <div className="chart-wrap"><div style={{fontWeight:600,fontSize:13,marginBottom:10,color:'var(--t)'}}>Revenus quotidiens</div><BarChart data={chartData} fmt={fmt}/></div>
+      <div className="tc"><div className="th2"><h3>Top 5 médicaments</h3></div>
+        {top5.length===0?<div className="emp"><p>Aucune vente sur cette période</p></div>:top5.map(([name,data],i)=><div key={name} className="top5-row">
+          <span style={{width:18,fontWeight:700,color:'var(--ac)',fontSize:11}}>{i+1}.</span>
+          <span style={{flex:1,fontWeight:500}}>{name}</span>
+          <span style={{color:'var(--t3)',marginRight:8,fontSize:11}}>{data.qty} u.</span>
+          <span style={{fontWeight:600,color:'var(--ok)',fontSize:11}}>{fmt(data.revenue)}</span>
+        </div>)}
+      </div>
+    </div>
+    <div className="tc"><div className="th2"><h3>Transactions</h3><span style={{fontSize:10,color:'var(--t3)'}}>{sortedInv.length} facture{sortedInv.length!==1?"s":""}</span></div>
+      {sortedInv.length===0?<div className="emp">{Ic.receipt({size:28,color:'var(--t3)'})}<p>Aucune vente sur cette période</p></div>:
+      sortedInv.map(([inv,g])=><div key={inv} className="inv-row">
+        <div className="inv-header">
+          <div><span style={{fontWeight:600,color:'var(--ac)',fontFamily:'monospace'}}>{inv}</span>{g.customer&&<span style={{marginLeft:8,color:'var(--t3)'}}>· {g.customer}</span>}</div>
+          <div style={{display:'flex',gap:12,alignItems:'center'}}><span style={{color:'var(--t3)'}}>{g.date}{g.time?` · ${g.time}`:""}</span><span style={{fontWeight:700,color:'var(--ok)'}}>{fmt(g.total)}</span></div>
+        </div>
+        {g.items.map((s,i)=><div key={i} className="inv-item"><span>{s.drug_name} <span style={{color:'var(--t3)'}}>×{s.qty}</span></span><span>{fmt(s.total)}</span></div>)}
+      </div>)}
+    </div>
+  </div>);
+}
+
+/* ═══════ ALERTS PAGE ═══════ */
 function AP({low,out,exp,warn,onRes}){return(<div className="ag"><AC t={`Stock faible (${low.length})`} tp="w" items={low} em="Tout en stock" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{d.stock} restant(s)</div></div><button className="bt bt-sm bt-p" onClick={()=>onRes(d)}>Réappro.</button></div>}/><AC t={`Épuisé (${out.length})`} tp="d" items={out} em="Aucun" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{d.category}</div></div><button className="bt bt-sm bt-p" onClick={()=>onRes(d)}>Réappro.</button></div>}/><AC t={`Expiration (${exp.length})`} tp="d" items={exp} em="Aucun" render={d=>{const days=daysUntil(d.expiry_date);return<div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{days<0?`Expiré il y a ${Math.abs(days)}j`:`${days}j`}</div></div><span className={`eb ${days<0?"expired":"critical"}`}>{days<0?"EXPIRÉ":`${days}j`}</span></div>}}/><AC t={`90 jours (${warn.length})`} tp="w" items={warn} em="Aucun" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{d.expiry_date}</div></div><span className="eb warning">{daysUntil(d.expiry_date)}j</span></div>}/></div>)}
 function AC({t,tp,items,em,render}){return(<div className="alc"><div className={`alc-h ${tp}`}>{tp==="w"?Ic.alert({size:13}):Ic.box({size:13})} {t}</div><div className="all2">{!items.length?<div className="emp" style={{padding:12}}><p>{em}</p></div>:items.map(render)}</div></div>)}
 
-function DF({title,drug,onClose,onSave}){const[f,setF]=useState({name:drug?.name||"",barcode:drug?.barcode||"",category:drug?.category||"",stock:drug?.stock??0,price:drug?.price??0,cost_price:drug?.cost_price??0,expiry_date:drug?.expiry_date||"",supplier:drug?.supplier||"",min_stock:drug?.min_stock??20});const s=(k,v)=>setF(p=>({...p,[k]:v}));const sv=()=>{if(!f.name.trim())return;onSave({...drug,...f,stock:parseInt(f.stock)||0,price:parseFloat(f.price)||0,cost_price:parseFloat(f.cost_price)||0,min_stock:parseInt(f.min_stock)||20})};return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}><div className="mo-h"><h3>{title}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div><div className="mo-b"><div className="fg"><div className="fi full"><label>Nom *</label><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Ex: Paracétamol 500mg" autoFocus/></div><div className="fi"><label>Code-barres</label><input value={f.barcode} onChange={e=>s("barcode",e.target.value)}/></div><div className="fi"><label>Catégorie</label><input value={f.category} onChange={e=>s("category",e.target.value)}/></div><div className="fi"><label>Stock</label><input type="number" min="0" value={f.stock} onChange={e=>s("stock",e.target.value)}/></div><div className="fi"><label>Stock min</label><input type="number" min="0" value={f.min_stock} onChange={e=>s("min_stock",e.target.value)}/></div><div className="fi"><label>Prix (USD)</label><input type="number" min="0" step="0.01" value={f.price} onChange={e=>s("price",e.target.value)}/></div><div className="fi"><label>Coût (USD)</label><input type="number" min="0" step="0.01" value={f.cost_price} onChange={e=>s("cost_price",e.target.value)}/></div><div className="fi"><label>Expiration</label><input type="date" value={f.expiry_date} onChange={e=>s("expiry_date",e.target.value)}/></div><div className="fi"><label>Fournisseur</label><input value={f.supplier} onChange={e=>s("supplier",e.target.value)}/></div></div></div><div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={sv} disabled={!f.name.trim()}>{Ic.check({size:12})} {drug?"Enregistrer":"Ajouter"}</button></div></div></div>)}
+/* ═══════ DRUG FORM MODAL ═══════ */
+function DF({title,drug,onClose,onSave}){
+  const[f,setF]=useState({name:drug?.name||"",barcode:drug?.barcode||"",category:drug?.category||"",stock:drug?.stock??0,price:drug?.price??0,cost_price:drug?.cost_price??0,expiry_date:drug?.expiry_date||"",supplier:drug?.supplier||"",min_stock:drug?.min_stock??20});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const sv=()=>{if(!f.name.trim())return;onSave({...drug,...f,stock:parseInt(f.stock)||0,price:parseFloat(f.price)||0,cost_price:parseFloat(f.cost_price)||0,min_stock:parseInt(f.min_stock)||20})};
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}>
+    <div className="mo-h"><h3>{title}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
+    <div className="mo-b"><div className="fg">
+      <div className="fi full"><label>Nom *</label><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Ex: Paracétamol 500mg" autoFocus/></div>
+      <div className="fi"><label>Code-barres</label><input value={f.barcode} onChange={e=>s("barcode",e.target.value)}/></div>
+      <div className="fi"><label>Catégorie</label><input value={f.category} onChange={e=>s("category",e.target.value)}/></div>
+      <div className="fi"><label>Stock</label><input type="number" min="0" value={f.stock} onChange={e=>s("stock",e.target.value)}/></div>
+      <div className="fi"><label>Stock min</label><input type="number" min="0" value={f.min_stock} onChange={e=>s("min_stock",e.target.value)}/></div>
+      <div className="fi"><label>Prix (USD)</label><input type="number" min="0" step="0.01" value={f.price} onChange={e=>s("price",e.target.value)}/></div>
+      <div className="fi"><label>Coût (USD)</label><input type="number" min="0" step="0.01" value={f.cost_price} onChange={e=>s("cost_price",e.target.value)}/></div>
+      <div className="fi"><label>Expiration</label><input type="date" value={f.expiry_date} onChange={e=>s("expiry_date",e.target.value)}/></div>
+      <div className="fi"><label>Fournisseur</label><input value={f.supplier} onChange={e=>s("supplier",e.target.value)}/></div>
+    </div></div>
+    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={sv} disabled={!f.name.trim()}>{Ic.check({size:12})} {drug?"Enregistrer":"Ajouter"}</button></div>
+  </div></div>);
+}
 
-function SM({drug,onClose,onSell}){const[qty,setQty]=useState(1);return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}><div className="mo-h"><h3>Vente</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div><div className="mo-b"><div style={{fontSize:14,fontWeight:600,marginBottom:2}}>{drug.name}</div><div style={{fontSize:10,color:'var(--t3)',marginBottom:10}}>Dispo : {drug.stock} · {fmtUSD(drug.price)}/u</div><div className="fi"><label>Quantité</label><input type="number" min="1" max={drug.stock} value={qty} onChange={e=>setQty(Math.min(drug.stock,Math.max(1,parseInt(e.target.value)||1)))} autoFocus/></div><div className="ss"><div className="ssr"><span>Prix unitaire</span><span>{fmtUSD(drug.price)}</span></div><div className="ssr"><span>Quantité</span><span>x{qty}</span></div><div className="ssr tot"><span>Total</span><span>{fmtUSD(drug.price*qty)}</span></div></div></div><div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-ok" onClick={()=>onSell(drug.id,qty)}>{Ic.cart({size:12})} {fmtUSD(drug.price*qty)}</button></div></div></div>)}
+/* ═══════ RESTOCK MODAL ═══════ */
+function RM({drug,onClose,onRes}){
+  const[qty,setQty]=useState(10);
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}>
+    <div className="mo-h"><h3>Réapprovisionner</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
+    <div className="mo-b">
+      <div style={{fontSize:14,fontWeight:600,marginBottom:2}}>{drug.name}</div>
+      <div style={{fontSize:10,color:'var(--t3)',marginBottom:10}}>Actuel : {drug.stock} · Min : {drug.min_stock||20}</div>
+      <div className="fi"><label>Quantité</label><input type="number" min="1" value={qty} onChange={e=>setQty(Math.max(1,parseInt(e.target.value)||1))} autoFocus/></div>
+      <div className="ss"><div className="ssr"><span>Actuel</span><span>{drug.stock}</span></div><div className="ssr"><span>Ajout</span><span>+{qty}</span></div><div className="ssr tot"><span>Nouveau</span><span>{drug.stock+qty}</span></div></div>
+    </div>
+    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onRes(drug.id,qty)}>{Ic.plus({size:12})} +{qty}</button></div>
+  </div></div>);
+}
 
-function RM({drug,onClose,onRes}){const[qty,setQty]=useState(10);return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}><div className="mo-h"><h3>Réapprovisionner</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div><div className="mo-b"><div style={{fontSize:14,fontWeight:600,marginBottom:2}}>{drug.name}</div><div style={{fontSize:10,color:'var(--t3)',marginBottom:10}}>Actuel : {drug.stock} · Min : {drug.min_stock||20}</div><div className="fi"><label>Quantité</label><input type="number" min="1" value={qty} onChange={e=>setQty(Math.max(1,parseInt(e.target.value)||1))} autoFocus/></div><div className="ss"><div className="ssr"><span>Actuel</span><span>{drug.stock}</span></div><div className="ssr"><span>Ajout</span><span>+{qty}</span></div><div className="ssr tot"><span>Nouveau</span><span>{drug.stock+qty}</span></div></div></div><div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onRes(drug.id,qty)}>{Ic.plus({size:12})} +{qty}</button></div></div></div>)}
-
-function CM({onClose,onImport,fileRef}){const[drag,setDrag]=useState(false);const[pv,setPv]=useState(null);const ref=fileRef||React.createRef();const h=file=>{if(!file)return;const r=new FileReader();r.onload=e=>setPv(e.target.result);r.readAsText(file)};return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:480}}><div className="mo-h"><h3>Importer CSV</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div><div className="mo-b"><div className={`dz ${drag?"on":""}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);h(e.dataTransfer.files[0])}} onClick={()=>ref.current?.click()}>{Ic.upload({size:22})}<p><strong>Déposez un CSV</strong> ou cliquez</p><input ref={ref} type="file" accept=".csv" style={{display:'none'}} onChange={e=>h(e.target.files[0])}/></div>{pv&&<pre style={{background:'var(--bg)',padding:7,borderRadius:6,fontSize:9,overflow:'auto',maxHeight:90,marginTop:8}}>{pv.split("\n").slice(0,5).join("\n")}</pre>}</div><div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onImport(pv)} disabled={!pv}>{Ic.upload({size:12})} Importer</button></div></div></div>)}
+/* ═══════ CSV IMPORT MODAL ═══════ */
+function CM({onClose,onImport,fileRef}){
+  const[drag,setDrag]=useState(false);const[pv,setPv]=useState(null);
+  const ref=fileRef||React.createRef();
+  const h=file=>{if(!file)return;const r=new FileReader();r.onload=e=>setPv(e.target.result);r.readAsText(file)};
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:480}}>
+    <div className="mo-h"><h3>Importer CSV</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
+    <div className="mo-b">
+      <div className={`dz ${drag?"on":""}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);h(e.dataTransfer.files[0])}} onClick={()=>ref.current?.click()}>
+        {Ic.upload({size:22})}<p><strong>Déposez un CSV</strong> ou cliquez</p>
+        <input ref={ref} type="file" accept=".csv" style={{display:'none'}} onChange={e=>h(e.target.files[0])}/>
+      </div>
+      {pv&&<pre style={{background:'var(--bg)',padding:7,borderRadius:6,fontSize:9,overflow:'auto',maxHeight:90,marginTop:8}}>{pv.split("\n").slice(0,5).join("\n")}</pre>}
+    </div>
+    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onImport(pv)} disabled={!pv}>{Ic.upload({size:12})} Importer</button></div>
+  </div></div>);
+}
 
 /* ═══════ ROOT ═══════ */
 export default function App(){
   const[session,setSession]=useState(null);const[checking,setChecking]=useState(true);
-  useEffect(()=>{supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setChecking(false)});const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));return()=>subscription.unsubscribe()},[]);
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setChecking(false)});
+    const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));
+    return()=>subscription.unsubscribe();
+  },[]);
   const logout=async()=>{await supabase.auth.signOut();setSession(null)};
   if(checking)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#F4F7F5'}}><div className="spin" style={{width:32,height:32,border:'3px solid #D4E4DB',borderTopColor:'#1A7F48',borderRadius:'50%',animation:'sp 1s linear infinite'}}/><style>{"@keyframes sp{to{transform:rotate(360deg)}}"}</style></div>;
   if(!session)return<LandingPage onAuth={setSession}/>;
