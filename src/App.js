@@ -395,6 +395,15 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .team-status.pending{color:var(--w)}
 .team-invite-box{padding:16px}
 .ws-id{font-size:10px;color:var(--t3);font-family:monospace;margin-top:3px;word-break:break-all}
+.cart-item{display:grid;grid-template-columns:1fr auto auto auto;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--bd2)}
+.cart-item:last-child{border-bottom:none}
+.cart-item-name{font-weight:600;font-size:13px;color:var(--t);margin-bottom:2px}
+.cart-item-meta{font-size:11px;color:var(--t3)}
+.cart-cat-badge{display:inline-block;font-size:9px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--al);color:var(--ac);margin-top:4px;letter-spacing:.3px}
+.cart-line-total{font-weight:700;font-size:14px;color:var(--ok);min-width:76px;text-align:right}
+.cart-summary{background:var(--bg);border-radius:var(--rs);padding:12px 14px;margin-top:14px;border:1px solid var(--bd2)}
+.cart-sum-row{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);padding:3px 0}
+.cart-total-row{display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--t);padding:10px 0 0;margin-top:8px;border-top:2px solid var(--bd)}
 @media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
 `;
 
@@ -485,7 +494,8 @@ function DashApp({session,onLogout}){
   const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
   const addToCart=(drug)=>{
-    setCart(prev=>{const ex=prev.find(i=>i.drug.id===drug.id);if(ex)return prev.map(i=>i.drug.id===drug.id?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]});
+    const dk=drug.id||drug.name;
+    setCart(prev=>{const ex=prev.find(i=>(i.drug.id||i.drug.name)===dk);if(ex)return prev.map(i=>(i.drug.id||i.drug.name)===dk?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]});
     t2(`${drug.name} ajouté au panier`);
   };
 
@@ -637,27 +647,56 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel}){
 /* ═══════ CART MODAL ═══════ */
 function CartModal({cart,setCart,onConfirm,onClose,fmt}){
   const[customer,setCustomer]=useState("");
-  const upd=(id,qty)=>setCart(prev=>qty<1?prev.filter(i=>i.drug.id!==id):prev.map(i=>i.drug.id===id?{...i,qty:Math.min(qty,i.drug.stock)}:i));
-  const total=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
+  const dk=d=>d.id||d.name;
+  const upd=(key,qty)=>setCart(prev=>qty<1?prev.filter(i=>dk(i.drug)!==key):prev.map(i=>dk(i.drug)===key?{...i,qty:Math.min(qty,i.drug.stock)}:i));
+  const subtotal=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
   const totalQty=cart.reduce((s,i)=>s+i.qty,0);
-  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:520}}>
-    <div className="mo-h"><h3>Panier {cart.length>0&&`(${totalQty} article${totalQty!==1?"s":""})`}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
-    <div className="mo-b">
-      {cart.length===0?<div className="emp">{Ic.cart({size:28,color:'var(--t3)'})}<p>Le panier est vide. Ajoutez des médicaments depuis l'inventaire.</p></div>:
-      <><div>{cart.map(item=><div key={item.drug.id} className="cart-item-row">
-        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:12}}>{item.drug.name}</div><div style={{fontSize:10,color:'var(--t3)'}}>{fmt(item.drug.price)}/u · max {item.drug.stock}</div></div>
-        <div className="qty-ctrl">
-          <button onClick={()=>upd(item.drug.id,item.qty-1)}>−</button>
-          <span>{item.qty}</span>
-          <button onClick={()=>upd(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
-        </div>
-        <div style={{minWidth:70,textAlign:'right',fontWeight:600,fontSize:12,color:'var(--ok)'}}>{fmt(item.drug.price*item.qty)}</div>
-        <button className="bt bt-g bt-sm" onClick={()=>upd(item.drug.id,0)} style={{color:'var(--d)'}}>{Ic.trash({size:11})}</button>
-      </div>)}</div>
-      <div className="fi" style={{marginTop:12}}><label>Nom du client (optionnel)</label><input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Ex: Jean Mukendi"/></div>
-      <div className="ss"><div className="ssr"><span>Articles</span><span>{totalQty} unité{totalQty!==1?"s":""}</span></div><div className="ssr tot"><span>Total</span><span>{fmt(total)}</span></div></div></>}
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:700,maxWidth:'96vw'}}>
+    <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
+      <div><h3 style={{fontSize:19,display:'flex',alignItems:'center',gap:8}}>{Ic.cart({size:17})} Panier d'achats</h3>
+        {cart.length>0&&<div style={{fontSize:11,color:'var(--t3)',marginTop:3}}>{cart.length} médicament{cart.length!==1?'s':''} · {totalQty} unité{totalQty!==1?'s':''} au total</div>}
+      </div>
+      <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
     </div>
-    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Fermer</button><button className="bt bt-ok" onClick={()=>onConfirm(cart,customer)} disabled={cart.length===0}>{Ic.check({size:12})} Confirmer · {fmt(total)}</button></div>
+    <div className="mo-b" style={{maxHeight:'52vh',overflowY:'auto'}}>
+      {cart.length===0
+        ?<div className="emp" style={{padding:'48px 0'}}>{Ic.cart({size:36,color:'var(--t3)'})}<p style={{marginTop:14,fontSize:13}}>Le panier est vide.<br/>Ajoutez des médicaments depuis l'inventaire.</p></div>
+        :<>
+          <div>
+            {cart.map(item=>{const key=dk(item.drug);const line=item.drug.price*item.qty;return(
+              <div key={key} className="cart-item">
+                <div>
+                  <div className="cart-item-name">{item.drug.name}</div>
+                  <div className="cart-item-meta">{fmt(item.drug.price)} / unité · stock : {item.drug.stock}</div>
+                  {item.drug.category&&<span className="cart-cat-badge">{item.drug.category}</span>}
+                </div>
+                <div className="qty-ctrl">
+                  <button onClick={()=>upd(key,item.qty-1)}>−</button>
+                  <span>{item.qty}</span>
+                  <button onClick={()=>upd(key,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
+                </div>
+                <div className="cart-line-total">{fmt(line)}</div>
+                <button className="bt bt-g bt-sm" onClick={()=>upd(key,0)} style={{color:'var(--d)'}} title="Retirer du panier">{Ic.trash({size:11})}</button>
+              </div>
+            )})}
+          </div>
+          <div className="fi" style={{marginTop:16}}>
+            <label>Nom du client (optionnel)</label>
+            <input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Ex: Jean Mukendi" onKeyDown={e=>e.key==="Enter"&&cart.length>0&&onConfirm(cart,customer)}/>
+          </div>
+          <div className="cart-summary">
+            {cart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
+            <div className="cart-total-row"><span>Total</span><span>{fmt(subtotal)}</span></div>
+          </div>
+        </>
+      }
+    </div>
+    <div className="mo-f" style={{justifyContent:'space-between',alignItems:'center'}}>
+      <button className="bt bt-s" onClick={onClose}>Fermer</button>
+      <button className="bt bt-ok" onClick={()=>onConfirm(cart,customer)} disabled={cart.length===0} style={{padding:'10px 22px',fontSize:13,gap:7}}>
+        {Ic.check({size:13})} Confirmer la vente · {fmt(subtotal)}
+      </button>
+    </div>
   </div></div>);
 }
 
@@ -666,41 +705,77 @@ function InvoiceModal({invoice,onClose,fmt}){
   const printInvoice=()=>{
     const win=window.open("","_blank");
     const rows=invoice.items.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fmtUSD(i.unit_price)}</td><td style="text-align:right">${fmtUSD(i.total)}</td></tr>`).join("");
+    const logoUrl=window.location.origin+LOGO;
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facture ${invoice.number}</title><style>
-body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;color:#1A2E23;font-size:13px}
-h1{color:#0F4C2A;font-size:24px;margin-bottom:2px}.sub{color:#5A8A6A;font-size:11px;margin-bottom:20px}
-.meta{display:flex;justify-content:space-between;margin-bottom:20px;padding:12px;background:#F4F7F5;border-radius:8px;font-size:12px}
-.meta strong{color:#0F4C2A}
-table{width:100%;border-collapse:collapse;margin-bottom:16px}
-th{background:#0F4C2A;color:#fff;padding:8px 10px;text-align:left;font-size:11px}
-td{padding:8px 10px;border-bottom:1px solid #E8F0EC}
-.total-row td{font-weight:700;font-size:14px;border-top:2px solid #1A7F48;border-bottom:none;background:#F4F7F5}
-.footer{text-align:center;margin-top:30px;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;padding-top:14px}
-@media print{body{margin:20px}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;max-width:640px;margin:40px auto;color:#1A2E23;font-size:13px;padding:0 20px}
+.header{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:3px solid #0F4C2A;margin-bottom:22px}
+.logo{width:56px;height:56px;border-radius:10px;object-fit:contain}
+.company-name{font-size:22px;font-weight:700;color:#0F4C2A;letter-spacing:-.3px}
+.company-sub{font-size:11px;color:#5A8A6A;margin-top:3px}
+.meta{display:flex;justify-content:space-between;margin-bottom:22px;padding:14px 16px;background:#F4F7F5;border-radius:10px;font-size:12px;gap:20px}
+.meta-block{}.meta-block strong{color:#0F4C2A;display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.meta-block span{font-size:13px;color:#1A2E23;font-weight:600}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;border-radius:8px;overflow:hidden}
+thead tr{background:#0F4C2A}
+th{color:#fff;padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+td{padding:10px 12px;border-bottom:1px solid #E8F0EC;font-size:12px}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:nth-child(even){background:#FAFCFB}
+.total-row{background:#F4F7F5!important}
+.total-row td{font-weight:700;font-size:14px;border-top:2px solid #1A7F48;color:#0F4C2A}
+.footer{text-align:center;margin-top:32px;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;padding-top:16px;line-height:1.8}
+@media print{body{margin:10px}.footer{position:fixed;bottom:10px;width:100%}}
 </style></head><body>
-<h1>Speranza Della Pharma</h1><p class="sub">Système de Gestion Pharmaceutique</p>
-<div class="meta"><div><strong>Facture N° :</strong> ${invoice.number}<br/><strong>Date :</strong> ${invoice.date}</div><div style="text-align:right"><strong>Client :</strong> ${invoice.customer||"Client de passage"}</div></div>
+<div class="header"><img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/><div><div class="company-name">Speranza Della Pharma</div><div class="company-sub">Système de Gestion Pharmaceutique</div></div></div>
+<div class="meta">
+  <div class="meta-block"><strong>Facture N°</strong><span>${invoice.number}</span></div>
+  <div class="meta-block"><strong>Date</strong><span>${invoice.date}</span></div>
+  <div class="meta-block" style="text-align:right"><strong>Client</strong><span>${invoice.customer||"Client de passage"}</span></div>
+</div>
 <table><thead><tr><th>Médicament</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
-<tbody>${rows}<tr class="total-row"><td colspan="3">Total</td><td style="text-align:right">${fmtUSD(invoice.total)}</td></tr></tbody></table>
-<div class="footer">Merci pour votre confiance · Speranza Della Pharma</div>
+<tbody>${rows}<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fmtUSD(invoice.total)}</td></tr></tbody></table>
+<div class="footer">Merci pour votre confiance &nbsp;·&nbsp; Speranza Della Pharma<br/>Ce document est une facture officielle</div>
 </body></html>`);
-    win.document.close();setTimeout(()=>win.print(),300);
+    win.document.close();setTimeout(()=>win.print(),400);
   };
-  return(<div className="mo-bk"><div className="mo" onClick={e=>e.stopPropagation()} style={{width:500}}>
-    <div className="mo-h"><h3>{Ic.receipt({size:15})} Facture {invoice.number}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
-    <div className="mo-b">
-      <div style={{display:'flex',justifyContent:'space-between',marginBottom:12,fontSize:12,background:'var(--bg)',borderRadius:'var(--rs)',padding:'8px 10px'}}>
-        <span style={{color:'var(--t3)'}}>Date : <strong style={{color:'var(--t)'}}>{invoice.date}</strong></span>
-        {invoice.customer&&<span style={{color:'var(--t3)'}}>Client : <strong style={{color:'var(--t)'}}>{invoice.customer}</strong></span>}
+  return(<div className="mo-bk"><div className="mo" onClick={e=>e.stopPropagation()} style={{width:580,maxWidth:'96vw'}}>
+    <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <img src={LOGO} alt="" style={{width:36,height:36,borderRadius:7,objectFit:'contain'}} onError={e=>e.target.style.display='none'}/>
+        <div><h3 style={{fontSize:17}}>Facture {invoice.number}</h3><div style={{fontSize:11,color:'var(--t3)',marginTop:1}}>{invoice.date}{invoice.customer&&` · ${invoice.customer}`}</div></div>
       </div>
-      {invoice.items.map((item,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:'1px solid var(--bd2)',fontSize:12}}>
-        <span style={{fontWeight:500}}>{item.drug_name} <span style={{color:'var(--t3)',fontWeight:400}}>×{item.qty}</span></span>
-        <span style={{fontWeight:600,color:'var(--ok)'}}>{fmt(item.total)}</span>
-      </div>)}
-      <div className="ss"><div className="ssr tot"><span>Total</span><span>{fmt(invoice.total)}</span></div></div>
-      <div style={{fontSize:10,color:'var(--t3)',marginTop:8,textAlign:'center'}}>L'impression s'effectue toujours en USD</div>
+      <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
     </div>
-    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Fermer</button><button className="bt bt-p" onClick={printInvoice}>{Ic.print({size:12})} Imprimer la facture</button></div>
+    <div className="mo-b">
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:0}}>
+          <thead><tr style={{background:'var(--al)'}}>
+            <th style={{padding:'8px 10px',textAlign:'left',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Médicament</th>
+            <th style={{padding:'8px 10px',textAlign:'center',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Qté</th>
+            <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Prix unit.</th>
+            <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Total</th>
+          </tr></thead>
+          <tbody>
+            {invoice.items.map((item,i)=><tr key={i} style={{borderBottom:'1px solid var(--bd2)'}}>
+              <td style={{padding:'9px 10px',fontWeight:500}}>{item.drug_name}</td>
+              <td style={{padding:'9px 10px',textAlign:'center',color:'var(--t2)'}}>{item.qty}</td>
+              <td style={{padding:'9px 10px',textAlign:'right',color:'var(--t2)'}}>{fmt(item.unit_price)}</td>
+              <td style={{padding:'9px 10px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(item.total)}</td>
+            </tr>)}
+            <tr style={{background:'var(--bg)',borderTop:'2px solid var(--ac)'}}>
+              <td colSpan={3} style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:13}}>TOTAL</td>
+              <td style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:16,color:'var(--ac)'}}>{fmt(invoice.total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{fontSize:10,color:'var(--t3)',marginTop:10,textAlign:'center'}}>L'impression s'effectue toujours en USD</div>
+    </div>
+    <div className="mo-f" style={{justifyContent:'space-between'}}>
+      <button className="bt bt-s" onClick={onClose}>Fermer</button>
+      <button className="bt bt-p" onClick={printInvoice} style={{gap:7}}>{Ic.print({size:13})} Imprimer la facture</button>
+    </div>
   </div></div>);
 }
 
