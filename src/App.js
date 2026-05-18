@@ -468,16 +468,18 @@ function DashApp({session,onLogout}){
       supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at"),
     ]);
     setMembers(m||[]);setSales(s||[]);
-    // Consolidate all user's drugs/sales into the current workspace (catches orphaned workspace_ids too)
-    if(d?.some(x=>x.workspace_id!==ws.id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid);
-    if(s?.some(x=>x.workspace_id!==ws.id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid);
+    // Only migrate to workspace if it's a real DB workspace (not the synthetic fallback)
+    if(ws.id!==uid){
+      if(d?.some(x=>x.workspace_id!==ws.id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid);
+      if(s?.some(x=>x.workspace_id!==ws.id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid);
+    }
     if(d&&d.length>0){
       // Real data from DB — use it
       setDrugs(d);
     }else{
       // DB returned nothing (empty table, RLS block, or query error) — SAMPLE is already showing.
       // Try to seed into DB in the background; if it works, replace with persisted rows.
-      const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
+      const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id!==uid?ws.id:null}));
       supabase.from("drugs").insert(samples).select().then(({data:ins})=>{
         if(ins&&ins.length>0)setDrugs(ins);
         // else: keep showing initial SAMPLE state — never blank
@@ -499,15 +501,16 @@ function DashApp({session,onLogout}){
     t2(`${drug.name} ajouté au panier`);
   };
 
-  const hAdd=async(drug)=>{const ws=workspaceRef.current;const{error}=await supabase.from("drugs").insert({...drug,user_id:uid,workspace_id:ws?.id});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
+  const hAdd=async(drug)=>{const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;const{error}=await supabase.from("drugs").insert({...drug,user_id:uid,workspace_id:wsId});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
   const hEdit=async(drug)=>{const{id,user_id,created_at,updated_at,...rest}=drug;const{error}=await supabase.from("drugs").update({...rest,updated_at:new Date().toISOString()}).eq("id",id);if(error){t2("Erreur","er");return}await rlD();t2(`${drug.name} modifié`);setModal(null)};
   const hDel=async(id)=>{const d=drugs.find(x=>x.id===id);if(!window.confirm(`Supprimer "${d?.name}" ?`))return;await supabase.from("sales").delete().eq("drug_id",id);await supabase.from("drugs").delete().eq("id",id);await rlD();await rlS();t2(`${d?.name} supprimé`,"er")};
   const hRes=async(did,qty)=>{const d=drugs.find(x=>x.id===did);if(!d||qty<1)return;const{error}=await supabase.from("drugs").update({stock:d.stock+qty}).eq("id",did);if(error){t2("Erreur","er");return}await rlD();t2(`+${qty} ${d.name}`);setModal(null)};
 
   const hCartSell=async(cartItems,customerName)=>{
     const ws=workspaceRef.current;const invNum=genInv();
+    const wsId=ws?.id&&ws.id!==uid?ws.id:null;
     const salesData=cartItems.map(item=>({
-      user_id:uid,workspace_id:ws?.id,drug_id:item.drug.id,drug_name:item.drug.name,
+      user_id:uid,workspace_id:wsId,drug_id:item.drug.id,drug_name:item.drug.name,
       qty:item.qty,unit_price:item.drug.price,total:item.qty*item.drug.price,
       sale_date:today(),sale_time:new Date().toLocaleTimeString(),
       invoice_number:invNum,customer_name:customerName||null,
@@ -526,7 +529,7 @@ function DashApp({session,onLogout}){
     t2(`Vente confirmée · ${fmt(total)}`);
   };
 
-  const hCSV=async(text)=>{const ws=workspaceRef.current;try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,workspace_id:ws?.id,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
+  const hCSV=async(text)=>{const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,workspace_id:wsId,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
   const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
 
   const hClearAll=async()=>{
