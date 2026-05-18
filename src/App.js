@@ -431,7 +431,7 @@ function BarChart({data,fmt}){
 
 /* ═══════ DASHBOARD ═══════ */
 function DashApp({session,onLogout}){
-  const[drugs,setDrugs]=useState([]);const[sales,setSales]=useState([]);const[page,setPage]=useState("dashboard");
+  const[drugs,setDrugs]=useState(SAMPLE);const[sales,setSales]=useState([]);const[page,setPage]=useState("dashboard");
   const[search,setSearch]=useState("");const[toast,setToast]=useState(null);const[modal,setModal]=useState(null);
   const[loading,setLoading]=useState(true);const[showTour,setShowTour]=useState(false);
   const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);
@@ -459,19 +459,19 @@ function DashApp({session,onLogout}){
     // Consolidate all user's drugs/sales into the current workspace (catches orphaned workspace_ids too)
     if(d?.some(x=>x.workspace_id!==ws.id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid);
     if(s?.some(x=>x.workspace_id!==ws.id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid);
-    if(d&&d.length===0&&ws.owner_id===uid){
+    if(d&&d.length>0){
+      // Real data from DB — use it
+      setDrugs(d);
+    }else{
+      // DB returned nothing (empty table, RLS block, or query error) — SAMPLE is already showing.
+      // Try to seed into DB in the background; if it works, replace with persisted rows.
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
-      const{data:ins,error:insErr}=await supabase.from("drugs").insert(samples).select();
-      if(ins&&ins.length>0){
-        setDrugs(ins);
-      }else{
-        // INSERT returned nothing (silent RLS failure or timing issue) — display in-memory samples
-        // so the UI is never blank. They'll persist to DB on next successful write or page reload.
-        console.warn("Sample seed silent fail:",insErr);
-        setDrugs(samples);
-      }
-      setShowTour(true);
-    }else{setDrugs(d||[])}
+      supabase.from("drugs").insert(samples).select().then(({data:ins})=>{
+        if(ins&&ins.length>0)setDrugs(ins);
+        // else: keep showing initial SAMPLE state — never blank
+      });
+      if(ws.owner_id===uid)setShowTour(true);
+    }
     setLoading(false);
     const v=localStorage.getItem(`sp_v_${uid}`);if(!v){setShowTour(true);localStorage.setItem(`sp_v_${uid}`,"1")}
   };ld()},[uid]);
