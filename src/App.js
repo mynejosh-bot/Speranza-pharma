@@ -81,7 +81,7 @@ const LCSS=`
 .land{min-height:100vh;background:#FAFDF8;font-family:'Outfit',sans-serif;color:#1A2E23;overflow-x:hidden}
 .ln{position:fixed;top:0;left:0;right:0;z-index:50;padding:16px 48px;display:flex;align-items:center;justify-content:space-between;background:rgba(250,253,248,0.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(30,140,78,0.06)}
 .ln-logo{display:flex;align-items:center;gap:12px}
-.ln-logo img{height:52px;object-fit:contain}
+.ln-logo img{height:42px;border-radius:8px;object-fit:contain}
 .ln-logo h1{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#0F4C2A;line-height:1.1}
 .ln-logo span{display:block;font-family:'Outfit',sans-serif;font-size:9px;color:#5A8A6A;letter-spacing:2px;text-transform:uppercase;font-weight:500}
 .ln-r{display:flex;align-items:center;gap:28px}
@@ -146,7 +146,7 @@ const LCSS=`
 .pg-out{animation:pgo .4s ease forwards}@keyframes pgo{to{opacity:0;transform:scale(.98)}}
 .auth-overlay{position:fixed;inset:0;background:rgba(15,76,42,0.5);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;animation:fi .2s}
 .auth-box{background:#fff;border-radius:20px;width:420px;max-width:95vw;padding:36px;box-shadow:0 20px 60px rgba(15,76,42,0.15);animation:su .25s;position:relative}
-.auth-logo{display:block;margin:0 auto 18px;height:70px;object-fit:contain}
+.auth-logo{display:block;margin:0 auto 18px;height:56px;border-radius:10px;object-fit:contain}
 .auth-box h3{font-family:'Cormorant Garamond',serif;font-size:26px;color:#0F4C2A;margin-bottom:4px;text-align:center}
 .auth-box .sub{font-size:13px;color:#5A8A6A;margin-bottom:24px;font-weight:300;text-align:center}
 .auth-fi{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
@@ -289,7 +289,7 @@ const DCSS=`
 .app{display:flex;height:100vh;overflow:hidden}
 .sb{width:250px;min-width:250px;background:var(--sb);display:flex;flex-direction:column;z-index:10}
 .sb-brand{padding:16px 13px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
-.sb-brand-logo{width:46px;height:46px;object-fit:contain}
+.sb-brand-logo{width:38px;height:38px;border-radius:8px;object-fit:contain;background:#fff;padding:2px}
 .sb-brand h1{font-family:'Cormorant Garamond',serif;font-size:14px;color:#fff;font-weight:500;line-height:1.15}
 .sb-brand span{font-family:'Outfit',sans-serif;font-size:9px;color:var(--od2);letter-spacing:1px;text-transform:uppercase}
 .sb-nav{padding:10px 8px;flex:1;display:flex;flex-direction:column;gap:2px}
@@ -395,7 +395,7 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .team-status.pending{color:var(--w)}
 .team-invite-box{padding:16px}
 .ws-id{font-size:10px;color:var(--t3);font-family:monospace;margin-top:3px;word-break:break-all}
-@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:36px;height:36px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
+@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
 `;
 
 /* ═══════ WORKSPACE SETUP ═══════ */
@@ -448,12 +448,16 @@ function DashApp({session,onLogout}){
     let ws;
     try{ws=await setupWorkspace(session.user)}catch(e){console.error("Workspace setup failed:",e);setLoading(false);return}
     workspaceRef.current=ws;setWorkspace(ws);
+    const wsOr=`workspace_id.eq.${ws.id},and(user_id.eq.${uid},workspace_id.is.null)`;
     const[{data:d},{data:s},{data:m}]=await Promise.all([
-      supabase.from("drugs").select("*").eq("workspace_id",ws.id).order("name"),
-      supabase.from("sales").select("*").eq("workspace_id",ws.id).order("created_at",{ascending:false}),
+      supabase.from("drugs").select("*").or(wsOr).order("name"),
+      supabase.from("sales").select("*").or(wsOr).order("created_at",{ascending:false}),
       supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at"),
     ]);
     setMembers(m||[]);setSales(s||[]);
+    // Silently migrate any legacy records that have user_id but no workspace_id
+    if(d?.some(x=>!x.workspace_id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
+    if(s?.some(x=>!x.workspace_id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
     const myRole=(m||[]).find(mb=>mb.user_id===uid)?.role;
     if(d&&d.length===0&&myRole==="owner"){
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
@@ -465,8 +469,8 @@ function DashApp({session,onLogout}){
   };ld()},[uid]);
 
   const t2=(m,t="ok")=>{setToast({m,t});setTimeout(()=>setToast(null),3000)};
-  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("drugs").select("*").eq("workspace_id",ws.id).order("name");setDrugs(data||[])};
-  const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("sales").select("*").eq("workspace_id",ws.id).order("created_at",{ascending:false});setSales(data||[])};
+  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},and(user_id.eq.${uid},workspace_id.is.null)`;const{data}=await supabase.from("drugs").select("*").or(f).order("name");setDrugs(data||[])};
+  const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},and(user_id.eq.${uid},workspace_id.is.null)`;const{data}=await supabase.from("sales").select("*").or(f).order("created_at",{ascending:false});setSales(data||[])};
   const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
   const addToCart=(drug)=>{
