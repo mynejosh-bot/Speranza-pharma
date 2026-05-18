@@ -448,16 +448,17 @@ function DashApp({session,onLogout}){
     let ws;
     try{ws=await setupWorkspace(session.user)}catch(e){console.error("Workspace setup failed:",e);setLoading(false);return}
     workspaceRef.current=ws;setWorkspace(ws);
-    const wsOr=`workspace_id.eq.${ws.id},and(user_id.eq.${uid},workspace_id.is.null)`;
+    // Broad OR: catch drugs by current workspace OR by user_id (any workspace_id, including orphaned ones)
+    const wsOr=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;
     const[{data:d},{data:s},{data:m}]=await Promise.all([
       supabase.from("drugs").select("*").or(wsOr).order("name"),
       supabase.from("sales").select("*").or(wsOr).order("created_at",{ascending:false}),
       supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at"),
     ]);
     setMembers(m||[]);setSales(s||[]);
-    // Silently migrate any legacy records that have user_id but no workspace_id
-    if(d?.some(x=>!x.workspace_id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
-    if(s?.some(x=>!x.workspace_id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
+    // Consolidate all user's drugs/sales into the current workspace (catches orphaned workspace_ids too)
+    if(d?.some(x=>x.workspace_id!==ws.id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid);
+    if(s?.some(x=>x.workspace_id!==ws.id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid);
     if(d&&d.length===0&&ws.owner_id===uid){
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
       const{data:ins,error:insErr}=await supabase.from("drugs").insert(samples).select();
@@ -476,8 +477,8 @@ function DashApp({session,onLogout}){
   };ld()},[uid]);
 
   const t2=(m,t="ok")=>{setToast({m,t});setTimeout(()=>setToast(null),3000)};
-  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},and(user_id.eq.${uid},workspace_id.is.null)`;const{data}=await supabase.from("drugs").select("*").or(f).order("name");setDrugs(data||[])};
-  const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},and(user_id.eq.${uid},workspace_id.is.null)`;const{data}=await supabase.from("sales").select("*").or(f).order("created_at",{ascending:false});setSales(data||[])};
+  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("drugs").select("*").or(f).order("name");setDrugs(data||[])};
+  const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("sales").select("*").or(f).order("created_at",{ascending:false});setSales(data||[])};
   const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
   const addToCart=(drug)=>{
