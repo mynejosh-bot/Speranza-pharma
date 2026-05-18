@@ -458,8 +458,7 @@ function DashApp({session,onLogout}){
     // Silently migrate any legacy records that have user_id but no workspace_id
     if(d?.some(x=>!x.workspace_id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
     if(s?.some(x=>!x.workspace_id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null);
-    const myRole=(m||[]).find(mb=>mb.user_id===uid)?.role;
-    if(d&&d.length===0&&myRole==="owner"){
+    if(d&&d.length===0&&ws.owner_id===uid){
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id}));
       const{data:ins}=await supabase.from("drugs").insert(samples).select();
       setDrugs(ins||[]);setShowTour(true);
