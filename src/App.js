@@ -454,6 +454,7 @@ function DashApp({session,onLogout}){
   const uid=session.user.id;
 
   const fmt=useCallback((n)=>fmtAmt(n,currency),[currency]);
+  const fmtFC=useCallback((n)=>fmtAmt(n,"FC"),[]);
   const toggleCurrency=()=>{const nx=currency==="USD"?"FC":"USD";setCurrency(nx);localStorage.setItem("sp_currency",nx)};
 
   useEffect(()=>{const ld=async()=>{setLoading(true);
@@ -529,7 +530,56 @@ function DashApp({session,onLogout}){
     t2(`Vente confirmée · ${fmt(total)}`);
   };
 
-  const hCSV=async(text)=>{const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;try{const lines=text.trim().split("\n");if(lines.length<2)throw new Error("CSV invalide");const h=lines[0].split(",").map(s=>s.trim().toLowerCase().replace(/[^a-z0-9]/g,""));const ni=h.findIndex(s=>s.includes("name")||s.includes("nom")||s.includes("drug")||s.includes("medicament"));if(ni===-1)throw new Error("Colonne 'nom' introuvable");const bi=h.findIndex(s=>s.includes("barcode")||s.includes("code"));const ci=h.findIndex(s=>s.includes("categor")||s.includes("cat"));const si=h.findIndex(s=>s.includes("stock")||s.includes("qty")||s.includes("quantit"));const pi=h.findIndex(s=>s.includes("prix")||s.includes("price"));const coi=h.findIndex(s=>s.includes("cout")||s.includes("cost"));const ei=h.findIndex(s=>s.includes("expir")||s.includes("exp"));const sui=h.findIndex(s=>s.includes("fournisseur")||s.includes("supplier"));const mi=h.findIndex(s=>s.includes("min"));const imp=[];for(let i=1;i<lines.length;i++){const c=lines[i].split(",").map(s=>s.trim());if(!c[ni])continue;imp.push({user_id:uid,workspace_id:wsId,name:c[ni],barcode:bi>=0?c[bi]:"",category:ci>=0?c[ci]:"Général",stock:si>=0?parseInt(c[si])||0:0,price:pi>=0?parseFloat(c[pi])||0:0,cost_price:coi>=0?parseFloat(c[coi])||0:0,expiry_date:ei>=0?c[ei]:null,supplier:sui>=0?c[sui]:"",min_stock:mi>=0?parseInt(c[mi])||20:20})}if(!imp.length)throw new Error("Aucune ligne valide");const{error}=await supabase.from("drugs").insert(imp);if(error)throw error;await rlD();t2(`${imp.length} importé(s)`);setModal(null)}catch(e){t2(e.message,"er")}};
+  const hCSV=async(text)=>{
+    const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;
+    try{
+      // Strip BOM, normalize line endings
+      const clean=text.replace(/^﻿/,"").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+      const lines=clean.trim().split("\n").filter(l=>l.trim());
+      if(lines.length<2)throw new Error("CSV invalide — au moins 2 lignes requises");
+      // Auto-detect delimiter: semicolon, tab, or comma
+      const first=lines[0];
+      const delim=first.includes(";")?";":first.includes("\t")?"\t":",";
+      // Normalize: remove accents via NFD, lowercase, strip non-alphanumeric
+      const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      // Strip surrounding quotes from a cell value
+      const unquote=s=>s?.trim().replace(/^["']|["']$/g,"").trim()||"";
+      const parseNum=s=>parseFloat(unquote(s).replace(",","."))||0;
+      const h=first.split(delim).map(s=>norm(unquote(s)));
+      const col=(...terms)=>h.findIndex(s=>terms.some(t=>s.includes(t)));
+      const ni=col("nom","name","drug","medic","produit","article","designation");
+      if(ni===-1)throw new Error(`Colonne "Nom" introuvable. En-têtes détectés : ${first.split(delim).slice(0,6).join(" | ")}`);
+      const bi=col("barcode","codebarre","code","ean");
+      const ci=col("categor","cat","type","famille");
+      const si=col("stock","qte","qty","quantit");
+      const pi=col("prix","price","pv","ventepu","pu");
+      const coi=col("cout","cost","achat","pa","prixachat");
+      const ei=col("expir","exp","perempt","dlc","date");
+      const sui=col("fournisseur","supplier","fourni","vendor");
+      const mi=col("min","seuil","minimum");
+      const imp=[];
+      for(let i=1;i<lines.length;i++){
+        const c=lines[i].split(delim);
+        const name=unquote(c[ni]);
+        if(!name)continue;
+        imp.push({
+          user_id:uid,workspace_id:wsId,name,
+          barcode:bi>=0?unquote(c[bi]):"",
+          category:ci>=0?unquote(c[ci])||"Général":"Général",
+          stock:si>=0?parseInt(unquote(c[si]))||0:0,
+          price:pi>=0?parseNum(c[pi]):0,
+          cost_price:coi>=0?parseNum(c[coi]):0,
+          expiry_date:ei>=0&&unquote(c[ei])?unquote(c[ei]):null,
+          supplier:sui>=0?unquote(c[sui]):"",
+          min_stock:mi>=0?parseInt(unquote(c[mi]))||20:20,
+        });
+      }
+      if(!imp.length)throw new Error("Aucune ligne valide trouvée dans le fichier");
+      const{error}=await supabase.from("drugs").insert(imp);
+      if(error)throw error;
+      await rlD();t2(`${imp.length} médicament(s) importé(s) avec succès`);setModal(null);
+    }catch(e){t2(e.message,"er")}
+  };
   const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
 
   const hClearAll=async()=>{
@@ -603,8 +653,8 @@ function DashApp({session,onLogout}){
     {modal?.type==="edit"&&<DF title="Modifier" drug={modal.drug} onClose={()=>setModal(null)} onSave={hEdit}/>}
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
-    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onClose={()=>setShowCart(false)} fmt={fmt}/>}
-    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmt}/>}
+    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onClose={()=>setShowCart(false)} fmt={fmtFC}/>}
+    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
   </div></>);
@@ -654,14 +704,14 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt}){
   const upd=(key,qty)=>setCart(prev=>qty<1?prev.filter(i=>dk(i.drug)!==key):prev.map(i=>dk(i.drug)===key?{...i,qty:Math.min(qty,i.drug.stock)}:i));
   const subtotal=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
   const totalQty=cart.reduce((s,i)=>s+i.qty,0);
-  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:700,maxWidth:'96vw'}}>
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:'min(860px,94vw)',maxHeight:'92vh'}}>
     <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
       <div><h3 style={{fontSize:19,display:'flex',alignItems:'center',gap:8}}>{Ic.cart({size:17})} Panier d'achats</h3>
         {cart.length>0&&<div style={{fontSize:11,color:'var(--t3)',marginTop:3}}>{cart.length} médicament{cart.length!==1?'s':''} · {totalQty} unité{totalQty!==1?'s':''} au total</div>}
       </div>
       <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
     </div>
-    <div className="mo-b" style={{maxHeight:'52vh',overflowY:'auto'}}>
+    <div className="mo-b" style={{maxHeight:'65vh',overflowY:'auto'}}>
       {cart.length===0
         ?<div className="emp" style={{padding:'48px 0'}}>{Ic.cart({size:36,color:'var(--t3)'})}<p style={{marginTop:14,fontSize:13}}>Le panier est vide.<br/>Ajoutez des médicaments depuis l'inventaire.</p></div>
         :<>
@@ -707,7 +757,8 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt}){
 function InvoiceModal({invoice,onClose,fmt}){
   const printInvoice=()=>{
     const win=window.open("","_blank");
-    const rows=invoice.items.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fmtUSD(i.unit_price)}</td><td style="text-align:right">${fmtUSD(i.total)}</td></tr>`).join("");
+    const fc=n=>fmtAmt(n,"FC");
+    const rows=invoice.items.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fc(i.unit_price)}</td><td style="text-align:right">${fc(i.total)}</td></tr>`).join("");
     const logoUrl=window.location.origin+LOGO;
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facture ${invoice.number}</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -737,7 +788,7 @@ tbody tr:nth-child(even){background:#FAFCFB}
   <div class="meta-block" style="text-align:right"><strong>Client</strong><span>${invoice.customer||"Client de passage"}</span></div>
 </div>
 <table><thead><tr><th>Médicament</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
-<tbody>${rows}<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fmtUSD(invoice.total)}</td></tr></tbody></table>
+<tbody>${rows}<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fc(invoice.total)}</td></tr></tbody></table>
 <div class="footer">Merci pour votre confiance &nbsp;·&nbsp; Speranza Della Pharma<br/>Ce document est une facture officielle</div>
 </body></html>`);
     win.document.close();setTimeout(()=>win.print(),400);
@@ -773,7 +824,7 @@ tbody tr:nth-child(even){background:#FAFCFB}
           </tbody>
         </table>
       </div>
-      <div style={{fontSize:10,color:'var(--t3)',marginTop:10,textAlign:'center'}}>L'impression s'effectue toujours en USD</div>
+      <div style={{fontSize:10,color:'var(--t3)',marginTop:10,textAlign:'center'}}>Facture en Francs Congolais (FC)</div>
     </div>
     <div className="mo-f" style={{justifyContent:'space-between'}}>
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
