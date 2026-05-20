@@ -48,6 +48,11 @@ const Ic={
   bar:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   leaf:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75"/></svg>,
   print:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+  globe:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
+  clipboard:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>,
+  pkg:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  copy:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
+  phone:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.29 6.29l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>,
 };
 
 /* ═══════ ONBOARDING TOUR ═══════ */
@@ -404,7 +409,26 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .cart-summary{background:var(--bg);border-radius:var(--rs);padding:12px 14px;margin-top:14px;border:1px solid var(--bd2)}
 .cart-sum-row{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);padding:3px 0}
 .cart-total-row{display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--t);padding:10px 0 0;margin-top:8px;border-top:2px solid var(--bd)}
-@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}}
+/* Ruptures */
+.rup-form{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;padding:14px 18px}
+.rup-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bd2);font-size:12px}.rup-row:last-child{border-bottom:none}
+/* Clients */
+.client-row{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--bd2);gap:10px;cursor:pointer;transition:.1s}.client-row:last-child{border-bottom:none}
+.client-row:hover{background:var(--bg)}
+.client-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--al),#C5DEC5);color:var(--ac);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+/* Commands/Orders */
+.cmd-row{padding:12px 14px;border-bottom:1px solid var(--bd2)}.cmd-row:last-child{border-bottom:none}
+.cmd-status{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.cmd-status.pending{background:var(--w-bg);color:#92400E}.cmd-status.confirmed{background:var(--ok-bg);color:#065F46}.cmd-status.cancelled{background:var(--d-bg);color:#991B1B}
+/* Vitrine sidebar */
+.sb-vitrine{margin:6px 8px;padding:8px 10px;background:rgba(255,255,255,.08);border-radius:var(--rs);border:1px solid rgba(255,255,255,.12)}
+.sb-vitrine-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--od2);margin-bottom:4px;font-weight:600;display:flex;align-items:center;gap:4px}
+.sb-vitrine-url{font-size:8px;color:rgba(255,255,255,.45);word-break:break-all;line-height:1.4;margin-bottom:6px;font-family:monospace}
+.sb-vitrine-btns{display:flex;gap:4px}
+.sb-vitrine-btn{flex:1;padding:4px 0;border:none;border-radius:5px;font-size:9px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.15s}
+.sb-vitrine-btn.cp{background:rgba(255,255,255,.15);color:#fff}.sb-vitrine-btn.cp:hover{background:rgba(255,255,255,.25)}
+.sb-vitrine-btn.op{background:var(--sba);color:#fff}.sb-vitrine-btn.op:hover{background:var(--ac)}
+@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}.sb-vitrine{display:none}}
 `;
 
 /* ═══════ WORKSPACE SETUP ═══════ */
@@ -449,9 +473,11 @@ function DashApp({session,onLogout}){
   const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);
   const[currency,setCurrency]=useState(()=>localStorage.getItem("sp_currency")||"USD");
   const[workspace,setWorkspace]=useState(null);const[members,setMembers]=useState([]);
+  const[sfOrders,setSfOrders]=useState([]);
+  const uid=session.user.id;
+  const[ruptures,setRuptures]=useState(()=>{try{return JSON.parse(localStorage.getItem(`sp_ruptures_${session.user.id}`)||"[]")}catch{return[]}});
   const workspaceRef=useRef(null);
   const fileRef=useRef(null);
-  const uid=session.user.id;
 
   const fmt=useCallback((n)=>fmtAmt(n,currency),[currency]);
   const fmtFC=useCallback((n)=>fmtAmt(n,"FC"),[]);
@@ -463,12 +489,13 @@ function DashApp({session,onLogout}){
     workspaceRef.current=ws;setWorkspace(ws);
     // Broad OR: catch drugs by current workspace OR by user_id (any workspace_id, including orphaned ones)
     const wsOr=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;
-    const[{data:d},{data:s},{data:m}]=await Promise.all([
+    const[{data:d},{data:s},{data:m},{data:sfo}]=await Promise.all([
       supabase.from("drugs").select("*").or(wsOr).order("name"),
       supabase.from("sales").select("*").or(wsOr).order("created_at",{ascending:false}),
       supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at"),
+      supabase.from("storefront_orders").select("*").eq("workspace_id",ws.id).order("created_at",{ascending:false}),
     ]);
-    setMembers(m||[]);setSales(s||[]);
+    setMembers(m||[]);setSales(s||[]);setSfOrders(sfo||[]);
     // Only migrate to workspace if it's a real DB workspace (not the synthetic fallback)
     if(ws.id!==uid){
       if(d?.some(x=>x.workspace_id!==ws.id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid);
@@ -616,16 +643,29 @@ function DashApp({session,onLogout}){
     await loadMembers();t2("Membre retiré");
   };
 
+  const saveRuptures=(r)=>{setRuptures(r);localStorage.setItem(`sp_ruptures_${uid}`,JSON.stringify(r))};
+  const hAddRupture=(item)=>saveRuptures([{...item,id:Date.now().toString(),date:today()},...ruptures]);
+  const hDelRupture=(id)=>saveRuptures(ruptures.filter(r=>r.id!==id));
+
+  const hUpdateOrderStatus=async(id,status)=>{
+    const{error}=await supabase.from("storefront_orders").update({status}).eq("id",id);
+    if(error){t2("Erreur: "+error.message,"er");return}
+    setSfOrders(prev=>prev.map(o=>o.id===id?{...o,status}:o));
+    t2("Statut mis à jour");
+  };
+
   const tD=drugs.length,tS=drugs.reduce((s,d)=>s+d.stock,0);
   const low=drugs.filter(d=>d.stock>0&&d.stock<=(d.min_stock||20));const out=drugs.filter(d=>d.stock===0);
   const ex=drugs.filter(d=>{const s=expSt(d.expiry_date);return s==="critical"||s==="expired"});
-  const wrn=drugs.filter(d=>expSt(d.expiry_date)==="warning");const ac=low.length+out.length+ex.length;
+  const wrn=drugs.filter(d=>expSt(d.expiry_date)==="warning");const ac=low.length+out.length+ex.length+ruptures.length;
   const tsl=sales.filter(s=>s.sale_date===today()),tr=tsl.reduce((s,sl)=>s+Number(sl.total),0);
   const flt=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.barcode&&d.barcode.includes(q))||(d.category&&d.category.toLowerCase().includes(q))});
   const cartCount=cart.reduce((s,i)=>s+i.qty,0);
+  const pendingOrders=sfOrders.filter(o=>o.status==="pending").length;
+  const storeUrl=workspace&&workspace.id!==uid?`${window.location.origin}/store/${workspace.id}`:null;
 
-  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"team",label:"Équipe",icon:Ic.users}];
-  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",team:"Équipe & Accès"};
+  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Ruptures",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
+  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Ruptures de stock",commandes:"Commandes vitrine",team:"Équipe & Accès"};
 
   if(loading)return(<><style>{DCSS}</style><div className="ld-ov"><div className="spin"/><p style={{marginTop:12,color:'#4A6B5A',fontSize:12}}>Chargement...</p></div></>);
 
@@ -635,6 +675,14 @@ function DashApp({session,onLogout}){
       <nav className="sb-nav">
         <div className="sb-lbl">Menu</div>
         {nav.map(n=><button key={n.id} className={`sb-btn ${page===n.id?"on":""}`} onClick={()=>setPage(n.id)}>{n.icon({size:15})}<span>{n.label}</span>{n.badge&&<span className="badge">{n.badge}</span>}</button>)}
+        {storeUrl&&<div className="sb-vitrine">
+          <div className="sb-vitrine-lbl">{Ic.globe({size:10})} Vitrine</div>
+          <div className="sb-vitrine-url">{storeUrl}</div>
+          <div className="sb-vitrine-btns">
+            <button className="sb-vitrine-btn cp" onClick={()=>{navigator.clipboard.writeText(storeUrl);t2("Lien vitrine copié")}}>Copier</button>
+            <button className="sb-vitrine-btn op" onClick={()=>window.open(storeUrl,"_blank")}>Ouvrir</button>
+          </div>
+        </div>}
         <div className="sb-lbl" style={{marginTop:"auto"}}>Données</div>
         <button className="sb-btn" onClick={()=>setModal({type:"csv"})}>{Ic.upload({size:15})}<span>Importer CSV</span></button>
         <button className="sb-btn" onClick={expCSV}>{Ic.download({size:15})}<span>Exporter CSV</span></button>
@@ -658,6 +706,9 @@ function DashApp({session,onLogout}){
         {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
         {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
+        {page==="clients"&&<ClientsPage sales={sales} fmt={fmt}/>}
+        {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
+        {page==="commandes"&&<StorefrontOrdersPage orders={sfOrders} onUpdateStatus={hUpdateOrderStatus}/>}
         {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember}/>}
       </div>
     </main>
@@ -1021,14 +1072,283 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember}){
   </div>);
 }
 
+/* ═══════ CLIENTS PAGE ═══════ */
+function ClientsPage({sales,fmt}){
+  const[selected,setSelected]=useState(null);
+  const clientMap={};
+  sales.forEach(s=>{
+    const name=s.customer_name||null;
+    if(!name)return;
+    if(!clientMap[name])clientMap[name]={name,count:0,total:0,lastDate:"",purchases:[]};
+    clientMap[name].count+=1;clientMap[name].total+=Number(s.total);
+    if(!clientMap[name].lastDate||(s.sale_date||"")>clientMap[name].lastDate)clientMap[name].lastDate=s.sale_date||"";
+    clientMap[name].purchases.push(s);
+  });
+  const clients=Object.values(clientMap).sort((a,b)=>b.total-a.total);
+  if(!clients.length)return(<div className="emp" style={{paddingTop:48}}>{Ic.users({size:36,color:"var(--t3)"})}<p style={{marginTop:12,fontSize:13}}>Aucun client enregistré.<br/>Les clients apparaissent automatiquement lors des ventes avec nom.</p></div>);
+  return(<div style={{display:"grid",gridTemplateColumns:selected?"1fr 1fr":"1fr",gap:12,alignItems:"start"}}>
+    <div className="tc">
+      <div className="th2"><h3>Clients</h3><span style={{fontSize:10,color:"var(--t3)"}}>{clients.length} client{clients.length!==1?"s":""}</span></div>
+      {clients.map(c=><div key={c.name} className="client-row" onClick={()=>setSelected(selected?.name===c.name?null:c)} style={{background:selected?.name===c.name?"var(--al)":undefined}}>
+        <div className="client-avatar">{c.name[0].toUpperCase()}</div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:600,fontSize:12,color:"var(--t)"}}>{c.name}</div>
+          <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{c.count} achat{c.count!==1?"s":""} · Dernier: {c.lastDate||"—"}</div>
+        </div>
+        <div style={{fontWeight:700,fontSize:12,color:"var(--ok)"}}>{fmt(c.total)}</div>
+      </div>)}
+    </div>
+    {selected&&<div className="tc">
+      <div className="th2">
+        <div><h3 style={{fontSize:14}}>{selected.name}</h3><div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{selected.count} achats · Total: {fmt(selected.total)}</div></div>
+        <button className="bt bt-g" onClick={()=>setSelected(null)}>{Ic.x({size:13})}</button>
+      </div>
+      {[...selected.purchases].sort((a,b)=>(b.sale_date||"").localeCompare(a.sale_date||"")).map((s,i)=>(
+        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--bd2)",fontSize:12}}>
+          <div>
+            <div style={{fontWeight:500}}>{s.drug_name} <span style={{color:"var(--t3)"}}>×{s.qty}</span></div>
+            <div style={{fontSize:9,color:"var(--t3)"}}>{s.sale_date}{s.invoice_number?` · ${s.invoice_number}`:""}</div>
+          </div>
+          <span style={{fontWeight:700,fontSize:11,color:"var(--ok)"}}>{fmt(s.total)}</span>
+        </div>
+      ))}
+    </div>}
+  </div>);
+}
+
+/* ═══════ RUPTURES PAGE ═══════ */
+function RupturesPage({ruptures,onAdd,onDel}){
+  const[f,setF]=useState({name:"",askedBy:"",notes:""});
+  const s=(k,v)=>setF(p=>({...p,[k]:v}));
+  const submit=()=>{if(!f.name.trim())return;onAdd({...f});setF({name:"",askedBy:"",notes:""})};
+  return(<div>
+    <div className="tc" style={{marginBottom:14}}>
+      <div className="th2"><h3>Signaler une rupture</h3></div>
+      <div className="rup-form">
+        <div className="fi full"><label>Médicament demandé *</label><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Ex: Augmentin 500mg" autoFocus/></div>
+        <div className="fi"><label>Demandé par</label><input value={f.askedBy} onChange={e=>s("askedBy",e.target.value)} placeholder="Nom du client"/></div>
+        <div className="fi"><label>Notes</label><input value={f.notes} onChange={e=>s("notes",e.target.value)} placeholder="Quantité, urgence..."/></div>
+      </div>
+      <div style={{padding:"0 18px 14px"}}><button className="bt bt-p" onClick={submit} disabled={!f.name.trim()}>{Ic.plus({size:12})} Signaler</button></div>
+    </div>
+    <div className="tc">
+      <div className="th2"><h3>Ruptures signalées</h3><span style={{fontSize:10,color:"var(--t3)"}}>{ruptures.length} produit{ruptures.length!==1?"s":""}</span></div>
+      {!ruptures.length
+        ?<div className="emp">{Ic.clipboard({size:28,color:"var(--t3)"})}<p>Aucune rupture signalée.</p></div>
+        :ruptures.map(r=><div key={r.id} className="rup-row">
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,fontSize:12,color:"var(--t)"}}>{r.name}</div>
+            {r.askedBy&&<div style={{fontSize:10,color:"var(--t3)"}}>Demandé par : {r.askedBy}</div>}
+            {r.notes&&<div style={{fontSize:10,color:"var(--t3)"}}>{r.notes}</div>}
+            <div style={{fontSize:9,color:"var(--t3)",marginTop:2}}>{r.date}</div>
+          </div>
+          <button className="bt bt-g bt-sm" onClick={()=>onDel(r.id)} style={{color:"var(--d)"}} title="Supprimer">{Ic.trash({size:11})}</button>
+        </div>)
+      }
+    </div>
+  </div>);
+}
+
+/* ═══════ STOREFRONT ORDERS PAGE ═══════ */
+function StorefrontOrdersPage({orders,onUpdateStatus}){
+  const pending=orders.filter(o=>o.status==="pending").length;
+  const lbl={pending:"En attente",confirmed:"Confirmée",cancelled:"Annulée"};
+  return(<div>
+    {pending>0&&<div style={{background:"var(--w-bg)",border:"1px solid #FDE68A",borderRadius:"var(--r)",padding:"10px 14px",marginBottom:12,fontSize:12,color:"#92400E",display:"flex",alignItems:"center",gap:8}}>{Ic.alert({size:13})} {pending} commande{pending!==1?"s":""} en attente de traitement</div>}
+    <div className="tc">
+      <div className="th2"><h3>Commandes vitrine</h3><span style={{fontSize:10,color:"var(--t3)"}}>{orders.length} commande{orders.length!==1?"s":""}</span></div>
+      {!orders.length
+        ?<div className="emp">{Ic.pkg({size:28,color:"var(--t3)"})}<p>Aucune commande reçue.<br/>Partagez votre lien vitrine pour recevoir des demandes.</p></div>
+        :orders.map(o=>{
+          const items=Array.isArray(o.items)?o.items:[];
+          const dt=new Date(o.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+          const tm=new Date(o.created_at).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+          return(<div key={o.id} className="cmd-row">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+              <div>
+                <div style={{fontWeight:600,fontSize:12}}>{o.customer_name}</div>
+                <div style={{fontSize:10,color:"var(--t3)"}}>{o.customer_phone||"Pas de téléphone"} · {dt} à {tm}</div>
+              </div>
+              <span className={`cmd-status ${o.status}`}>{lbl[o.status]||o.status}</span>
+            </div>
+            <div style={{fontSize:11,color:"var(--t2)",marginBottom:6}}>
+              {items.map((it,i)=><span key={i} style={{marginRight:10}}>{it.name} <span style={{color:"var(--t3)"}}>×{it.qty}</span></span>)}
+            </div>
+            {o.notes&&<div style={{fontSize:10,color:"var(--t3)",marginBottom:8,fontStyle:"italic"}}>Note : {o.notes}</div>}
+            {o.status==="pending"&&<div style={{display:"flex",gap:6}}>
+              <button className="bt bt-ok bt-sm" onClick={()=>onUpdateStatus(o.id,"confirmed")}>{Ic.check({size:11})} Confirmer</button>
+              <button className="bt bt-sm" style={{background:"var(--d-bg)",color:"var(--d)",border:"1px solid transparent"}} onClick={()=>onUpdateStatus(o.id,"cancelled")}>{Ic.x({size:11})} Annuler</button>
+              {o.customer_phone&&<a href={`https://wa.me/${o.customer_phone.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer" className="bt bt-s bt-sm" style={{textDecoration:"none",color:"#128C7E"}}>{Ic.phone({size:11})} WhatsApp</a>}
+            </div>}
+          </div>);
+        })
+      }
+    </div>
+  </div>);
+}
+
+/* ═══════ PUBLIC STOREFRONT ═══════ */
+const SFCSS=`
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Outfit',sans-serif;background:#F4F7F5;color:#1A2E23;-webkit-font-smoothing:antialiased}
+.sf{min-height:100vh;display:flex;flex-direction:column}
+.sf-nav{background:#0F4C2A;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:10}
+.sf-nav-brand{display:flex;align-items:center;gap:10px}
+.sf-nav-brand h1{font-family:'Cormorant Garamond',serif;font-size:18px;color:#fff;font-weight:500}
+.sf-nav-brand span{font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-top:1px}
+.sf-cart-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;color:#fff;font-size:12px;font-weight:500;font-family:'Outfit',sans-serif;cursor:pointer;transition:.2s}
+.sf-cart-btn:hover{background:rgba(255,255,255,.22)}
+.sf-cart-badge{background:#EF4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.sf-body{flex:1;max-width:1100px;margin:0 auto;width:100%;padding:24px 20px}
+.sf-search{position:relative;margin-bottom:20px}
+.sf-search input{width:100%;padding:10px 14px 10px 38px;border:1px solid #D4E4DB;border-radius:10px;font-size:13px;font-family:'Outfit',sans-serif;background:#fff;color:#1A2E23;outline:none;transition:.2s}
+.sf-search input:focus{border-color:#1A7F48;box-shadow:0 0 0 3px rgba(30,140,78,.1)}
+.sf-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8AA69A}
+.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.sf-card{background:#fff;border-radius:12px;border:1px solid #E8F0EC;padding:16px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:8px}
+.sf-card:hover{box-shadow:0 4px 16px rgba(15,76,42,.1);transform:translateY(-2px)}
+.sf-card.in-cart{border-color:#1A7F48;background:#FAFDF8}
+.sf-cat{font-size:9px;font-weight:600;padding:2px 8px;border-radius:10px;background:#E6F5EC;color:#1A7F48;display:inline-block;text-transform:uppercase;letter-spacing:.3px}
+.sf-name{font-weight:600;font-size:13px;color:#0F4C2A;line-height:1.3}
+.sf-stock{font-size:10px;color:#8AA69A}
+.sf-add-btn{margin-top:auto;padding:6px 0;border:none;border-radius:8px;background:#1A7F48;color:#fff;font-size:11px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.15s;width:100%}
+.sf-add-btn:hover{background:#0F4C2A}
+.sf-add-btn.added{background:#E6F5EC;color:#1A7F48}
+.sf-empty{text-align:center;padding:60px 20px;color:#8AA69A}
+.sf-empty p{margin-top:10px;font-size:14px}
+/* Overlay cart */
+.sf-overlay{position:fixed;inset:0;background:rgba(15,76,42,.4);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:flex-end;z-index:100;animation:sfi .15s}
+@keyframes sfi{from{opacity:0}to{opacity:1}}
+.sf-panel{background:#fff;width:460px;max-width:100vw;height:100vh;overflow-y:auto;padding:0;display:flex;flex-direction:column;box-shadow:-6px 0 30px rgba(15,76,42,.12)}
+.sf-panel-h{padding:16px 18px;border-bottom:1px solid #E8F0EC;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:2}
+.sf-panel-h h3{font-family:'Cormorant Garamond',serif;font-size:18px;color:#0F4C2A}
+.sf-close{background:none;border:none;color:#8AA69A;cursor:pointer;padding:4px}
+.sf-items{flex:1;padding:14px 18px;overflow-y:auto}
+.sf-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E8F0EC}
+.sf-item:last-child{border-bottom:none}
+.sf-item-name{flex:1;font-weight:600;font-size:12px;color:#1A2E23}
+.sf-item-cat{font-size:9px;color:#8AA69A;margin-top:2px}
+.sf-qty{display:flex;align-items:center;gap:6px}
+.sf-qty button{width:24px;height:24px;border-radius:6px;border:1px solid #D4E4DB;background:#fff;cursor:pointer;font-size:14px;font-weight:700;color:#4A6B5A;display:flex;align-items:center;justify-content:center;transition:.1s}
+.sf-qty button:hover{background:#E6F5EC;border-color:#1A7F48;color:#1A7F48}
+.sf-qty span{min-width:24px;text-align:center;font-weight:600;font-size:13px}
+.sf-form{padding:14px 18px;border-top:2px solid #E8F0EC}
+.sf-form h4{font-size:13px;font-weight:600;color:#0F4C2A;margin-bottom:12px}
+.sf-fi{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.sf-fi label{font-size:10px;font-weight:600;color:#4A6B5A;text-transform:uppercase;letter-spacing:.4px}
+.sf-fi input,.sf-fi textarea{padding:8px 10px;border:1px solid #D4E4DB;border-radius:8px;font-size:12px;font-family:'Outfit',sans-serif;color:#1A2E23;outline:none;transition:.2s;resize:none}
+.sf-fi input:focus,.sf-fi textarea:focus{border-color:#1A7F48;box-shadow:0 0 0 3px rgba(30,140,78,.1)}
+.sf-submit{width:100%;padding:12px;border:none;border-radius:9px;background:linear-gradient(135deg,#1A7F48,#0F4C2A);color:#fff;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.2s;margin-top:6px}
+.sf-submit:hover{opacity:.92}.sf-submit:disabled{opacity:.5;cursor:not-allowed}
+.sf-success{padding:28px 18px;text-align:center}
+.sf-success h4{font-family:'Cormorant Garamond',serif;font-size:20px;color:#0F4C2A;margin:12px 0 8px}
+.sf-success p{font-size:12px;color:#5A8A6A;line-height:1.6;margin-bottom:18px}
+.sf-wa-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:#25D366;border:none;border-radius:24px;color:#fff;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;text-decoration:none;transition:.2s}
+.sf-wa-btn:hover{background:#1ebe5a}
+.sf-footer{padding:16px 24px;text-align:center;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;margin-top:auto}
+@media(max-width:600px){.sf-grid{grid-template-columns:repeat(2,1fr)}.sf-panel{width:100vw}}
+`;
+
+function StoreFront({wsId}){
+  const[drugs,setDrugs]=useState([]);const[wsName,setWsName]=useState("Pharmacie");const[loading,setLoading]=useState(true);
+  const[cart,setCart]=useState([]);const[showPanel,setShowPanel]=useState(false);
+  const[submitted,setSubmitted]=useState(false);const[submitting,setSubmitting]=useState(false);
+  const[form,setForm]=useState({name:"",phone:"",notes:""});const[search,setSearch]=useState("");
+  const[lastOrder,setLastOrder]=useState(null);
+  useEffect(()=>{
+    const load=async()=>{
+      const[{data:ws},{data:d}]=await Promise.all([
+        supabase.from("workspaces").select("name").eq("id",wsId).single(),
+        supabase.from("drugs").select("*").eq("workspace_id",wsId).gt("stock",0).order("name"),
+      ]);
+      if(ws)setWsName(ws.name);setDrugs(d||[]);setLoading(false);
+    };
+    load();
+  },[wsId]);
+  const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const addToCart=(drug)=>{setCart(prev=>{const ex=prev.find(i=>i.drug.id===drug.id);if(ex)return prev.map(i=>i.drug.id===drug.id?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]})};
+  const updCart=(id,qty)=>setCart(prev=>qty<1?prev.filter(i=>i.drug.id!==id):prev.map(i=>i.drug.id===id?{...i,qty}:i));
+  const cartCount=cart.reduce((s,i)=>s+i.qty,0);
+  const filtered=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.category&&d.category.toLowerCase().includes(q))});
+  const submitOrder=async()=>{
+    if(!form.name.trim()||!cart.length)return;setSubmitting(true);
+    const items=cart.map(i=>({name:i.drug.name,qty:i.qty,category:i.drug.category||""}));
+    const{data,error}=await supabase.from("storefront_orders").insert({workspace_id:wsId,customer_name:form.name.trim(),customer_phone:form.phone.trim()||null,items,notes:form.notes.trim()||null,status:"pending"}).select().single();
+    setSubmitting(false);
+    if(error){alert("Erreur: "+error.message);return}
+    setLastOrder({...data,items,form:{...form}});setSubmitted(true);setCart([]);
+  };
+  const waText=lastOrder?encodeURIComponent(`Bonjour ${wsName}, j'ai soumis une demande de devis. Nom: ${lastOrder.form.name}. Articles: ${lastOrder.items.map(i=>`${i.name} x${i.qty}`).join(", ")}.`):"";
+  if(loading)return(<><style>{SFCSS}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F4F7F5"}}><div style={{width:32,height:32,border:"3px solid #D4E4DB",borderTopColor:"#1A7F48",borderRadius:"50%",animation:"spin 1s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div></>);
+  return(<><style>{SFCSS}</style><div className="sf">
+    <nav className="sf-nav">
+      <div className="sf-nav-brand"><div><h1>{wsName}</h1><span>Vitrine en ligne</span></div></div>
+      <button className="sf-cart-btn" onClick={()=>setShowPanel(true)}>
+        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+        Devis{cartCount>0&&<span className="sf-cart-badge">{cartCount}</span>}
+      </button>
+    </nav>
+    <div className="sf-body">
+      <div className="sf-search">
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input placeholder="Rechercher un médicament..." value={search} onChange={e=>setSearch(e.target.value)}/>
+      </div>
+      {!filtered.length?<div className="sf-empty"><svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#8AA69A" strokeWidth="1.5"><path d="M10.5 1.5l-8 8a5.66 5.66 0 008 8l8-8a5.66 5.66 0 00-8-8z"/><line x1="6" y1="14" x2="14" y2="6"/></svg><p>Aucun produit disponible.</p></div>:
+      <div className="sf-grid">{filtered.map(d=>{const inCart=cart.find(i=>i.drug.id===d.id);return(<div key={d.id} className={`sf-card ${inCart?"in-cart":""}`}>
+        <span className="sf-cat">{d.category||"Général"}</span>
+        <div className="sf-name">{d.name}</div>
+        <div className="sf-stock">{d.stock > 50 ? "En stock" : d.stock > 10 ? `Stock limité (${d.stock})` : `Derniers exemplaires (${d.stock})`}</div>
+        <button className="sf-add-btn" onClick={()=>{addToCart(d);setShowPanel(true)}}>{inCart?`✓ Dans le devis (×${inCart.qty})`:"Ajouter au devis"}</button>
+      </div>)})}</div>}
+    </div>
+    <div className="sf-footer">Vitrine alimentée par Speranza Della Pharma · {wsName}</div>
+    {showPanel&&<div className="sf-overlay" onClick={()=>setShowPanel(false)}><div className="sf-panel" onClick={e=>e.stopPropagation()}>
+      <div className="sf-panel-h"><h3>{submitted?"Commande envoyée":"Votre demande de devis"}</h3><button className="sf-close" onClick={()=>setShowPanel(false)}><svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+      {submitted?(<div className="sf-success">
+        <svg width={48} height={48} viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/></svg>
+        <h4>Demande envoyée !</h4>
+        <p>Merci {lastOrder?.form?.name}. La pharmacie va traiter votre demande et vous contacter sous peu.</p>
+        {lastOrder?.form?.phone&&<a href={`https://wa.me/?text=${waText}`} target="_blank" rel="noopener noreferrer" className="sf-wa-btn">
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Contacter via WhatsApp
+        </a>}
+        <div style={{marginTop:16}}><button style={{padding:"8px 18px",border:"1px solid #D4E4DB",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif",color:"#4A6B5A"}} onClick={()=>{setSubmitted(false);setForm({name:"",phone:"",notes:""});setLastOrder(null)}}>Faire une nouvelle demande</button></div>
+      </div>):(<>
+        <div className="sf-items">
+          {!cart.length?<div style={{textAlign:"center",padding:"32px 0",color:"#8AA69A",fontSize:13}}>Ajoutez des médicaments depuis la vitrine.</div>:cart.map(item=>(
+            <div key={item.drug.id} className="sf-item">
+              <div style={{flex:1}}><div className="sf-item-name">{item.drug.name}</div><div className="sf-item-cat">{item.drug.category||"Général"}</div></div>
+              <div className="sf-qty">
+                <button onClick={()=>updCart(item.drug.id,item.qty-1)}>−</button>
+                <span>{item.qty}</span>
+                <button onClick={()=>updCart(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {cart.length>0&&<div className="sf-form">
+          <h4>Vos coordonnées</h4>
+          <div className="sf-fi"><label>Nom complet *</label><input value={form.name} onChange={e=>sf("name",e.target.value)} placeholder="Ex: Jean Mukendi"/></div>
+          <div className="sf-fi"><label>Téléphone (WhatsApp)</label><input value={form.phone} onChange={e=>sf("phone",e.target.value)} placeholder="Ex: +243 81 234 5678" type="tel"/></div>
+          <div className="sf-fi"><label>Notes (optionnel)</label><textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} placeholder="Quantités spécifiques, questions..." rows={2}/></div>
+          <button className="sf-submit" onClick={submitOrder} disabled={!form.name.trim()||submitting}>{submitting?"Envoi en cours...":"Envoyer la demande de devis"}</button>
+        </div>}
+      </>)}
+    </div></div>}
+  </div></>);
+}
+
 /* ═══════ ROOT ═══════ */
 export default function App(){
   const[session,setSession]=useState(null);const[checking,setChecking]=useState(true);
+  const isStorefront=window.location.pathname.startsWith("/store/");
+  const sfWsId=isStorefront?window.location.pathname.split("/store/")[1]?.split("/")[0]:null;
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setChecking(false)});
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));
     return()=>subscription.unsubscribe();
   },[]);
+  if(isStorefront&&sfWsId)return<StoreFront wsId={sfWsId}/>;
   const logout=async()=>{await supabase.auth.signOut();setSession(null)};
   if(checking)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#F4F7F5'}}><div className="spin" style={{width:32,height:32,border:'3px solid #D4E4DB',borderTopColor:'#1A7F48',borderRadius:'50%',animation:'sp 1s linear infinite'}}/><style>{"@keyframes sp{to{transform:rotate(360deg)}}"}</style></div>;
   if(!session)return<LandingPage onAuth={setSession}/>;
