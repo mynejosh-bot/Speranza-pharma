@@ -428,7 +428,7 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .sb-vitrine-btn{flex:1;padding:4px 0;border:none;border-radius:5px;font-size:9px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.15s}
 .sb-vitrine-btn.cp{background:rgba(255,255,255,.15);color:#fff}.sb-vitrine-btn.cp:hover{background:rgba(255,255,255,.25)}
 .sb-vitrine-btn.op{background:var(--sba);color:#fff}.sb-vitrine-btn.op:hover{background:var(--ac)}
-@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}.sb-vitrine{display:none}}
+@media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}.sb-vitrine{display:none}.sb-vitrine-full{display:none}}
 `;
 
 /* ═══════ WORKSPACE SETUP ═══════ */
@@ -476,6 +476,7 @@ function DashApp({session,onLogout}){
   const[sfOrders,setSfOrders]=useState([]);
   const uid=session.user.id;
   const[ruptures,setRuptures]=useState(()=>{try{return JSON.parse(localStorage.getItem(`sp_ruptures_${session.user.id}`)||"[]")}catch{return[]}});
+  const[clientExtra,setClientExtra]=useState(()=>{try{return JSON.parse(localStorage.getItem(`sp_crm_${session.user.id}`)||"{}")}catch{return{}}});
   const workspaceRef=useRef(null);
   const fileRef=useRef(null);
 
@@ -644,6 +645,7 @@ function DashApp({session,onLogout}){
   };
 
   const saveRuptures=(r)=>{setRuptures(r);localStorage.setItem(`sp_ruptures_${uid}`,JSON.stringify(r))};
+  const saveClientExtra=(extra)=>{setClientExtra(extra);localStorage.setItem(`sp_crm_${uid}`,JSON.stringify(extra))};
   const hAddRupture=(item)=>saveRuptures([{...item,id:Date.now().toString(),date:today()},...ruptures]);
   const hDelRupture=(id)=>saveRuptures(ruptures.filter(r=>r.id!==id));
 
@@ -675,14 +677,16 @@ function DashApp({session,onLogout}){
       <nav className="sb-nav">
         <div className="sb-lbl">Menu</div>
         {nav.map(n=><button key={n.id} className={`sb-btn ${page===n.id?"on":""}`} onClick={()=>setPage(n.id)}>{n.icon({size:15})}<span>{n.label}</span>{n.badge&&<span className="badge">{n.badge}</span>}</button>)}
-        {storeUrl&&<div className="sb-vitrine">
-          <div className="sb-vitrine-lbl">{Ic.globe({size:10})} Vitrine</div>
-          <div className="sb-vitrine-url">{storeUrl}</div>
-          <div className="sb-vitrine-btns">
-            <button className="sb-vitrine-btn cp" onClick={()=>{navigator.clipboard.writeText(storeUrl);t2("Lien vitrine copié")}}>Copier</button>
-            <button className="sb-vitrine-btn op" onClick={()=>window.open(storeUrl,"_blank")}>Ouvrir</button>
-          </div>
-        </div>}
+        <div className="sb-vitrine">
+          <div className="sb-vitrine-lbl">{Ic.globe({size:10})} Vitrine en ligne</div>
+          {storeUrl?<>
+            <div className="sb-vitrine-url">{storeUrl}</div>
+            <div className="sb-vitrine-btns">
+              <button className="sb-vitrine-btn cp" onClick={()=>{navigator.clipboard.writeText(storeUrl);t2("Lien vitrine copié")}}>Copier le lien</button>
+              <button className="sb-vitrine-btn op" onClick={()=>window.open(storeUrl,"_blank")}>Ouvrir</button>
+            </div>
+          </>:<div style={{fontSize:9,color:"rgba(255,255,255,.4)",lineHeight:1.5,marginTop:2}}>Lien disponible après configuration de votre espace de travail.</div>}
+        </div>
         <div className="sb-lbl" style={{marginTop:"auto"}}>Données</div>
         <button className="sb-btn" onClick={()=>setModal({type:"csv"})}>{Ic.upload({size:15})}<span>Importer CSV</span></button>
         <button className="sb-btn" onClick={expCSV}>{Ic.download({size:15})}<span>Exporter CSV</span></button>
@@ -706,7 +710,7 @@ function DashApp({session,onLogout}){
         {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
         {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
-        {page==="clients"&&<ClientsPage sales={sales} fmt={fmt}/>}
+        {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
         {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
         {page==="commandes"&&<StorefrontOrdersPage orders={sfOrders} onUpdateStatus={hUpdateOrderStatus}/>}
         {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember}/>}
@@ -1073,36 +1077,93 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember}){
 }
 
 /* ═══════ CLIENTS PAGE ═══════ */
-function ClientsPage({sales,fmt}){
+function ClientsPage({sales,sfOrders,fmt,clientExtra,onSaveExtra}){
   const[selected,setSelected]=useState(null);
+  const[editing,setEditing]=useState(false);
+  const[editF,setEditF]=useState({phone:"",address:"",notes:""});
+  const ef=(k,v)=>setEditF(p=>({...p,[k]:v}));
+
+  // Build client map from sales
   const clientMap={};
   sales.forEach(s=>{
-    const name=s.customer_name||null;
-    if(!name)return;
+    const name=s.customer_name||null;if(!name)return;
     if(!clientMap[name])clientMap[name]={name,count:0,total:0,lastDate:"",purchases:[]};
     clientMap[name].count+=1;clientMap[name].total+=Number(s.total);
     if(!clientMap[name].lastDate||(s.sale_date||"")>clientMap[name].lastDate)clientMap[name].lastDate=s.sale_date||"";
     clientMap[name].purchases.push(s);
   });
+  // Auto-populate phone from storefront orders by matching customer_name
+  const phoneFromOrders={};
+  (sfOrders||[]).forEach(o=>{if(o.customer_name&&o.customer_phone&&!phoneFromOrders[o.customer_name])phoneFromOrders[o.customer_name]=o.customer_phone});
+  const getExtra=(name)=>clientExtra[name]||{};
+  const getPhone=(name)=>getExtra(name).phone||phoneFromOrders[name]||null;
+
   const clients=Object.values(clientMap).sort((a,b)=>b.total-a.total);
+
+  const openEdit=(c)=>{
+    const ex=getExtra(c.name);
+    setEditF({phone:ex.phone||phoneFromOrders[c.name]||"",address:ex.address||"",notes:ex.notes||""});
+    setEditing(true);
+  };
+  const saveEdit=()=>{onSaveExtra({...clientExtra,[selected.name]:editF});setEditing(false)};
+
   if(!clients.length)return(<div className="emp" style={{paddingTop:48}}>{Ic.users({size:36,color:"var(--t3)"})}<p style={{marginTop:12,fontSize:13}}>Aucun client enregistré.<br/>Les clients apparaissent automatiquement lors des ventes avec nom.</p></div>);
+
   return(<div style={{display:"grid",gridTemplateColumns:selected?"1fr 1fr":"1fr",gap:12,alignItems:"start"}}>
+    {/* Client list */}
     <div className="tc">
       <div className="th2"><h3>Clients</h3><span style={{fontSize:10,color:"var(--t3)"}}>{clients.length} client{clients.length!==1?"s":""}</span></div>
-      {clients.map(c=><div key={c.name} className="client-row" onClick={()=>setSelected(selected?.name===c.name?null:c)} style={{background:selected?.name===c.name?"var(--al)":undefined}}>
-        <div className="client-avatar">{c.name[0].toUpperCase()}</div>
-        <div style={{flex:1}}>
-          <div style={{fontWeight:600,fontSize:12,color:"var(--t)"}}>{c.name}</div>
-          <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{c.count} achat{c.count!==1?"s":""} · Dernier: {c.lastDate||"—"}</div>
+      {clients.map(c=>{const phone=getPhone(c.name);const ex=getExtra(c.name);return(
+        <div key={c.name} className="client-row" onClick={()=>{setSelected(selected?.name===c.name?null:c);setEditing(false)}} style={{background:selected?.name===c.name?"var(--al)":undefined}}>
+          <div className="client-avatar">{c.name[0].toUpperCase()}</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,fontSize:12,color:"var(--t)"}}>{c.name}</div>
+            <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>
+              {phone&&<span>{phone} · </span>}
+              {ex.address&&<span>{ex.address} · </span>}
+              {c.count} achat{c.count!==1?"s":""} · Dernier: {c.lastDate||"—"}
+            </div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <div style={{fontWeight:700,fontSize:12,color:"var(--ok)"}}>{fmt(c.total)}</div>
+            {phone&&<a href={`tel:${phone}`} onClick={e=>e.stopPropagation()} style={{fontSize:9,color:"var(--ac)",textDecoration:"none"}}>{Ic.phone({size:9})} Appeler</a>}
+          </div>
         </div>
-        <div style={{fontWeight:700,fontSize:12,color:"var(--ok)"}}>{fmt(c.total)}</div>
-      </div>)}
+      )})}
     </div>
+
+    {/* Client detail + contact card */}
     {selected&&<div className="tc">
-      <div className="th2">
-        <div><h3 style={{fontSize:14}}>{selected.name}</h3><div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{selected.count} achats · Total: {fmt(selected.total)}</div></div>
-        <button className="bt bt-g" onClick={()=>setSelected(null)}>{Ic.x({size:13})}</button>
+      <div className="th2" style={{alignItems:"flex-start"}}>
+        <div style={{flex:1}}>
+          <h3 style={{fontSize:14}}>{selected.name}</h3>
+          <div style={{fontSize:10,color:"var(--t3)",marginTop:1}}>{selected.count} achat{selected.count!==1?"s":""} · Total: {fmt(selected.total)}</div>
+        </div>
+        <div style={{display:"flex",gap:4}}>
+          <button className="bt bt-s bt-sm" onClick={()=>openEdit(selected)}>{Ic.edit({size:11})} Modifier</button>
+          <button className="bt bt-g" onClick={()=>setSelected(null)}>{Ic.x({size:13})}</button>
+        </div>
       </div>
+
+      {/* Contact info block */}
+      {editing?(<div style={{padding:"12px 14px",borderBottom:"1px solid var(--bd)",background:"var(--bg)"}}>
+        <div style={{fontSize:11,fontWeight:600,color:"var(--t)",marginBottom:8}}>Modifier les coordonnées</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          <div className="fi"><label>Téléphone</label><input value={editF.phone} onChange={e=>ef("phone",e.target.value)} placeholder="+243 81 234 5678"/></div>
+          <div className="fi"><label>Adresse / Établissement</label><input value={editF.address} onChange={e=>ef("address",e.target.value)} placeholder="Ex: Pharmacie Centrale"/></div>
+        </div>
+        <div className="fi" style={{marginBottom:8}}><label>Notes</label><input value={editF.notes} onChange={e=>ef("notes",e.target.value)} placeholder="Notes internes..."/></div>
+        <div style={{display:"flex",gap:6}}>
+          <button className="bt bt-p bt-sm" onClick={saveEdit}>{Ic.check({size:11})} Enregistrer</button>
+          <button className="bt bt-s bt-sm" onClick={()=>setEditing(false)}>Annuler</button>
+        </div>
+      </div>):(()=>{const ex=getExtra(selected.name);const phone=getPhone(selected.name);return(ex.phone||phone||ex.address||ex.notes)?(<div style={{padding:"10px 14px",borderBottom:"1px solid var(--bd)",background:"var(--bg)",display:"flex",flexWrap:"wrap",gap:12,fontSize:11}}>
+        {(ex.phone||phone)&&<div style={{display:"flex",alignItems:"center",gap:5,color:"var(--t)"}}>{Ic.phone({size:12,color:"var(--ac)"})} <a href={`tel:${ex.phone||phone}`} style={{color:"var(--ac)",textDecoration:"none",fontWeight:500}}>{ex.phone||phone}</a></div>}
+        {ex.address&&<div style={{color:"var(--t2)"}}>{Ic.clipboard({size:12,color:"var(--t3)"})} {ex.address}</div>}
+        {ex.notes&&<div style={{color:"var(--t3)",fontStyle:"italic"}}>{ex.notes}</div>}
+      </div>):null})()}
+
+      {/* Purchase history */}
       {[...selected.purchases].sort((a,b)=>(b.sale_date||"").localeCompare(a.sale_date||"")).map((s,i)=>(
         <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:"1px solid var(--bd2)",fontSize:12}}>
           <div>
