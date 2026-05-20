@@ -1250,72 +1250,137 @@ function StorefrontOrdersPage({orders,onUpdateStatus}){
 
 /* ═══════ PUBLIC STOREFRONT ═══════ */
 const SFCSS=`
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Outfit',sans-serif;background:#F4F7F5;color:#1A2E23;-webkit-font-smoothing:antialiased}
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Outfit:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Outfit',sans-serif;background:#F4F7F5;color:#1A2E23;-webkit-font-smoothing:antialiased}
+/* Layout */
 .sf{min-height:100vh;display:flex;flex-direction:column}
-.sf-nav{background:#0F4C2A;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:10}
-.sf-nav-brand{display:flex;align-items:center;gap:10px}
-.sf-nav-brand h1{font-family:'Cormorant Garamond',serif;font-size:18px;color:#fff;font-weight:500}
-.sf-nav-brand span{font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1.5px;display:block;margin-top:1px}
-.sf-cart-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;color:#fff;font-size:12px;font-weight:500;font-family:'Outfit',sans-serif;cursor:pointer;transition:.2s}
-.sf-cart-btn:hover{background:rgba(255,255,255,.22)}
-.sf-cart-badge{background:#EF4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700}
-.sf-body{flex:1;max-width:1100px;margin:0 auto;width:100%;padding:24px 20px}
-.sf-search{position:relative;margin-bottom:20px}
-.sf-search input{width:100%;padding:10px 14px 10px 38px;border:1px solid #D4E4DB;border-radius:10px;font-size:13px;font-family:'Outfit',sans-serif;background:#fff;color:#1A2E23;outline:none;transition:.2s}
+/* ── Nav ── */
+.sf-nav{background:linear-gradient(135deg,#0F4C2A 0%,#1A7F48 100%);padding:0 40px;height:68px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;box-shadow:0 2px 24px rgba(15,76,42,.3)}
+.sf-nav-brand{display:flex;align-items:center;gap:13px}
+.sf-nav-logo{width:40px;height:40px;border-radius:9px;object-fit:contain;background:rgba(255,255,255,.14);padding:3px}
+.sf-nav-txt h1{font-family:'Cormorant Garamond',serif;font-size:20px;color:#fff;font-weight:500;line-height:1.1}
+.sf-nav-txt span{font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:2px;display:block;margin-top:1px}
+.sf-cart-btn{display:flex;align-items:center;gap:8px;padding:10px 20px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:26px;color:#fff;font-size:12px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .2s;letter-spacing:.2px}
+.sf-cart-btn:hover{background:rgba(255,255,255,.26);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.sf-cart-badge{background:#EF4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+/* ── Hero banner ── */
+.sf-hero{background:#fff;border-bottom:1px solid rgba(30,140,78,.07);padding:32px 40px 24px;position:relative;overflow:hidden}
+.sf-hero::before{content:'';position:absolute;top:-120px;right:-120px;width:400px;height:400px;background:radial-gradient(circle,rgba(76,175,80,.07) 0%,transparent 70%);border-radius:50%;pointer-events:none}
+.sf-hero-inner{max-width:1060px;margin:0 auto;position:relative;z-index:1}
+.sf-hero-badge{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;background:rgba(30,140,78,.08);border:1px solid rgba(30,140,78,.14);border-radius:20px;font-size:10px;font-weight:600;color:#1A7F48;margin-bottom:12px;letter-spacing:.3px}
+.sf-hero-badge .dot{width:5px;height:5px;background:#1A7F48;border-radius:50%;animation:sfpulse 2s infinite}
+@keyframes sfpulse{0%,100%{opacity:1}50%{opacity:.35}}
+.sf-hero h2{font-family:'Cormorant Garamond',serif;font-size:clamp(26px,4vw,40px);font-weight:400;color:#0F4C2A;line-height:1.1;margin-bottom:6px}
+.sf-hero h2 em{font-style:italic;color:#1A7F48}
+.sf-hero p{font-size:13px;color:#5A8A6A;font-weight:300;margin-bottom:20px;max-width:480px;line-height:1.6}
+/* ── Search & categories ── */
+.sf-search{position:relative;max-width:680px}
+.sf-search input{width:100%;padding:12px 16px 12px 44px;border:1.5px solid #D4E4DB;border-radius:14px;font-size:13px;font-family:'Outfit',sans-serif;background:#fff;color:#1A2E23;outline:none;transition:.2s;box-shadow:0 1px 6px rgba(15,76,42,.06)}
 .sf-search input:focus{border-color:#1A7F48;box-shadow:0 0 0 3px rgba(30,140,78,.1)}
-.sf-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8AA69A}
-.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
-.sf-card{background:#fff;border-radius:12px;border:1px solid #E8F0EC;padding:16px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:8px}
-.sf-card:hover{box-shadow:0 4px 16px rgba(15,76,42,.1);transform:translateY(-2px)}
-.sf-card.in-cart{border-color:#1A7F48;background:#FAFDF8}
-.sf-cat{font-size:9px;font-weight:600;padding:2px 8px;border-radius:10px;background:#E6F5EC;color:#1A7F48;display:inline-block;text-transform:uppercase;letter-spacing:.3px}
-.sf-name{font-weight:600;font-size:13px;color:#0F4C2A;line-height:1.3}
-.sf-stock{font-size:10px;color:#8AA69A}
-.sf-add-btn{margin-top:auto;padding:6px 0;border:none;border-radius:8px;background:#1A7F48;color:#fff;font-size:11px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.15s;width:100%}
-.sf-add-btn:hover{background:#0F4C2A}
-.sf-add-btn.added{background:#E6F5EC;color:#1A7F48}
-.sf-empty{text-align:center;padding:60px 20px;color:#8AA69A}
-.sf-empty p{margin-top:10px;font-size:14px}
-/* Overlay cart */
-.sf-overlay{position:fixed;inset:0;background:rgba(15,76,42,.4);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:flex-end;z-index:100;animation:sfi .15s}
+.sf-search input::placeholder{color:#A8BFB5}
+.sf-search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:#8AA69A}
+.sf-cats{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.sf-cat-pill{padding:6px 14px;border-radius:22px;font-size:11px;font-weight:500;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .15s;border:1.5px solid #D4E4DB;background:#fff;color:#5A8A6A;white-space:nowrap}
+.sf-cat-pill:hover{border-color:#1A7F48;color:#1A7F48;background:#F0FAF4}
+.sf-cat-pill.on{background:#1A7F48;border-color:#1A7F48;color:#fff;box-shadow:0 2px 10px rgba(26,127,72,.28)}
+/* ── Product grid ── */
+.sf-body{flex:1;max-width:1140px;margin:0 auto;width:100%;padding:28px 40px}
+.sf-grid-wrap h3{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#8AA69A;font-weight:600;margin-bottom:14px}
+.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}
+/* ── Product card ── */
+.sf-card{background:#fff;border-radius:16px;border:1px solid #E8F0EC;overflow:hidden;cursor:pointer;transition:all .22s;display:flex;flex-direction:column;box-shadow:0 1px 5px rgba(15,76,42,.05)}
+.sf-card:hover{box-shadow:0 10px 32px rgba(15,76,42,.11);transform:translateY(-4px);border-color:#C5DEC5}
+.sf-card.in-cart{border-color:#1A7F48;box-shadow:0 6px 20px rgba(26,127,72,.18)}
+.sf-card-stripe{height:4px}
+.sf-card-body{padding:18px 16px 16px;flex:1;display:flex;flex-direction:column;gap:9px}
+.sf-card-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#E6F5EC,#C5DEC5);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:2px;flex-shrink:0}
+.sf-cat-badge{font-size:9px;font-weight:700;padding:3px 9px;border-radius:12px;background:#E6F5EC;color:#1A7F48;display:inline-block;text-transform:uppercase;letter-spacing:.5px}
+.sf-name{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:18px;color:#0F4C2A;line-height:1.2}
+.sf-stock-wrap{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:500}
+.sf-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sf-dot.g{background:#10B981}.sf-dot.y{background:#F59E0B}.sf-dot.r{background:#EF4444}
+.sf-stock-ok{color:#059669}.sf-stock-warn{color:#D97706}.sf-stock-low{color:#EF4444}
+.sf-add-btn{margin-top:auto;padding:10px 0;border:none;border-radius:10px;font-size:12px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .2s;width:100%;letter-spacing:.2px}
+.sf-add-btn.idle{background:linear-gradient(135deg,#1A7F48,#0F4C2A);color:#fff;box-shadow:0 2px 8px rgba(15,76,42,.18)}
+.sf-add-btn.idle:hover{box-shadow:0 5px 16px rgba(15,76,42,.3);transform:translateY(-1px)}
+.sf-add-btn.added{background:linear-gradient(135deg,#E6F5EC,#D0EDD8);color:#1A7F48;cursor:default}
+/* ── Empty state ── */
+.sf-empty{text-align:center;padding:80px 20px;color:#8AA69A}
+.sf-empty-icon{width:80px;height:80px;margin:0 auto 20px;background:linear-gradient(135deg,#E6F5EC,#D0EDD8);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.sf-empty h4{font-family:'Cormorant Garamond',serif;font-size:22px;color:#4A6B5A;margin-bottom:6px}
+.sf-empty p{font-size:13px;color:#8AA69A;font-weight:300}
+/* ── Overlay/panel ── */
+.sf-overlay{position:fixed;inset:0;background:rgba(15,76,42,.38);backdrop-filter:blur(6px);display:flex;align-items:stretch;justify-content:flex-end;z-index:100;animation:sfi .18s}
 @keyframes sfi{from{opacity:0}to{opacity:1}}
-.sf-panel{background:#fff;width:460px;max-width:100vw;height:100vh;overflow-y:auto;padding:0;display:flex;flex-direction:column;box-shadow:-6px 0 30px rgba(15,76,42,.12)}
-.sf-panel-h{padding:16px 18px;border-bottom:1px solid #E8F0EC;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:2}
-.sf-panel-h h3{font-family:'Cormorant Garamond',serif;font-size:18px;color:#0F4C2A}
-.sf-close{background:none;border:none;color:#8AA69A;cursor:pointer;padding:4px}
-.sf-items{flex:1;padding:14px 18px;overflow-y:auto}
-.sf-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #E8F0EC}
+.sf-panel{background:#fff;width:490px;max-width:100vw;height:100vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:-10px 0 50px rgba(15,76,42,.16);animation:sfp .24s ease}
+@keyframes sfp{from{transform:translateX(48px);opacity:0}to{transform:none;opacity:1}}
+.sf-panel-h{padding:20px 22px;border-bottom:1px solid #E8F0EC;display:flex;justify-content:space-between;align-items:flex-start;background:linear-gradient(135deg,#0F4C2A 0%,#1A7F48 100%)}
+.sf-panel-h h3{font-family:'Cormorant Garamond',serif;font-size:21px;color:#fff;font-weight:400}
+.sf-panel-h p{font-size:10px;color:rgba(255,255,255,.55);margin-top:2px}
+.sf-close{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.2);color:#fff;cursor:pointer;padding:7px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
+.sf-close:hover{background:rgba(255,255,255,.28)}
+.sf-items{flex:1;padding:18px 22px;overflow-y:auto}
+.sf-item{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-bottom:1px solid #F0F7F2}
 .sf-item:last-child{border-bottom:none}
-.sf-item-name{flex:1;font-weight:600;font-size:12px;color:#1A2E23}
-.sf-item-cat{font-size:9px;color:#8AA69A;margin-top:2px}
-.sf-qty{display:flex;align-items:center;gap:6px}
-.sf-qty button{width:24px;height:24px;border-radius:6px;border:1px solid #D4E4DB;background:#fff;cursor:pointer;font-size:14px;font-weight:700;color:#4A6B5A;display:flex;align-items:center;justify-content:center;transition:.1s}
-.sf-qty button:hover{background:#E6F5EC;border-color:#1A7F48;color:#1A7F48}
-.sf-qty span{min-width:24px;text-align:center;font-weight:600;font-size:13px}
-.sf-form{padding:14px 18px;border-top:2px solid #E8F0EC}
-.sf-form h4{font-size:13px;font-weight:600;color:#0F4C2A;margin-bottom:12px}
-.sf-fi{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.sf-fi label{font-size:10px;font-weight:600;color:#4A6B5A;text-transform:uppercase;letter-spacing:.4px}
-.sf-fi input,.sf-fi textarea{padding:8px 10px;border:1px solid #D4E4DB;border-radius:8px;font-size:12px;font-family:'Outfit',sans-serif;color:#1A2E23;outline:none;transition:.2s;resize:none}
-.sf-fi input:focus,.sf-fi textarea:focus{border-color:#1A7F48;box-shadow:0 0 0 3px rgba(30,140,78,.1)}
-.sf-submit{width:100%;padding:12px;border:none;border-radius:9px;background:linear-gradient(135deg,#1A7F48,#0F4C2A);color:#fff;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.2s;margin-top:6px}
-.sf-submit:hover{opacity:.92}.sf-submit:disabled{opacity:.5;cursor:not-allowed}
-.sf-success{padding:28px 18px;text-align:center}
-.sf-success h4{font-family:'Cormorant Garamond',serif;font-size:20px;color:#0F4C2A;margin:12px 0 8px}
-.sf-success p{font-size:12px;color:#5A8A6A;line-height:1.6;margin-bottom:18px}
-.sf-wa-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:#25D366;border:none;border-radius:24px;color:#fff;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;text-decoration:none;transition:.2s}
-.sf-wa-btn:hover{background:#1ebe5a}
-.sf-footer{padding:16px 24px;text-align:center;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;margin-top:auto}
-@media(max-width:600px){.sf-grid{grid-template-columns:repeat(2,1fr)}.sf-panel{width:100vw}}
+.sf-item-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#E6F5EC,#C5DEC5);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.sf-item-info{flex:1}
+.sf-item-name{font-weight:600;font-size:12.5px;color:#1A2E23;line-height:1.3}
+.sf-item-cat{font-size:10px;color:#8AA69A;margin-top:2px}
+.sf-qty{display:flex;align-items:center;gap:7px;margin-top:9px}
+.sf-qty button{width:28px;height:28px;border-radius:8px;border:1.5px solid #D4E4DB;background:#fff;cursor:pointer;font-size:16px;font-weight:700;color:#4A6B5A;display:flex;align-items:center;justify-content:center;transition:.15s;line-height:1}
+.sf-qty button:hover:not(:disabled){background:#E6F5EC;border-color:#1A7F48;color:#1A7F48}
+.sf-qty button:disabled{opacity:.3;cursor:not-allowed}
+.sf-qty span{min-width:28px;text-align:center;font-weight:700;font-size:14px;color:#1A2E23}
+.sf-form{padding:18px 22px;border-top:1.5px solid #E8F0EC;background:#FAFCFB}
+.sf-form h4{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:500;color:#0F4C2A;margin-bottom:14px}
+.sf-fi{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.sf-fi label{font-size:10px;font-weight:700;color:#4A6B5A;text-transform:uppercase;letter-spacing:.5px}
+.sf-fi input,.sf-fi textarea{padding:10px 13px;border:1.5px solid #D4E4DB;border-radius:10px;font-size:12.5px;font-family:'Outfit',sans-serif;color:#1A2E23;outline:none;transition:.2s;background:#fff;resize:none}
+.sf-fi input:focus,.sf-fi textarea:focus{border-color:#1A7F48;box-shadow:0 0 0 3px rgba(30,140,78,.09)}
+.sf-submit{width:100%;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#1A7F48,#0F4C2A);color:#fff;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .2s;letter-spacing:.3px;box-shadow:0 4px 16px rgba(15,76,42,.26)}
+.sf-submit:hover:not(:disabled){box-shadow:0 7px 22px rgba(15,76,42,.38);transform:translateY(-1px)}
+.sf-submit:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+/* ── Success ── */
+.sf-success{padding:36px 24px;text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.sf-success-ring{width:80px;height:80px;background:linear-gradient(135deg,#E6F5EC,#C5DEC5);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 6px 24px rgba(26,127,72,.2)}
+.sf-success h4{font-family:'Cormorant Garamond',serif;font-size:26px;color:#0F4C2A;margin-bottom:10px}
+.sf-success p{font-size:13px;color:#5A8A6A;line-height:1.7;margin-bottom:22px;max-width:310px}
+.sf-wa-btn{display:inline-flex;align-items:center;gap:9px;padding:13px 26px;background:#25D366;border:none;border-radius:28px;color:#fff;font-size:13px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;text-decoration:none;transition:all .2s;box-shadow:0 4px 18px rgba(37,211,102,.32)}
+.sf-wa-btn:hover{background:#1fca5e;transform:translateY(-1px);box-shadow:0 6px 24px rgba(37,211,102,.42)}
+.sf-new-btn{margin-top:14px;padding:9px 22px;border:1.5px solid #D4E4DB;border-radius:22px;background:#fff;cursor:pointer;font-size:12px;font-family:'Outfit',sans-serif;color:#5A8A6A;transition:.15s}
+.sf-new-btn:hover{border-color:#1A7F48;color:#1A7F48}
+/* ── Footer ── */
+.sf-footer{padding:18px 40px;text-align:center;font-size:11px;color:#8AA69A;border-top:1px solid #E8F0EC;background:#fff;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.sf-footer img{height:20px;border-radius:4px;opacity:.6}
+/* ── Responsive ── */
+@media(max-width:768px){
+  .sf-nav{padding:0 18px;height:60px}
+  .sf-nav-txt h1{font-size:16px}
+  .sf-hero{padding:20px 18px 18px}
+  .sf-hero h2{font-size:24px}
+  .sf-body{padding:18px}
+  .sf-grid{grid-template-columns:repeat(2,1fr);gap:12px}
+  .sf-card-body{padding:14px 12px 12px}
+  .sf-name{font-size:15px}
+  .sf-panel{width:100vw}
+  .sf-footer{padding:14px 18px}
+}
+@media(max-width:400px){.sf-grid{grid-template-columns:1fr}}
 `;
+
+const CAT_ICON={antibiot:"🔬",allergi:"🌿",gastro:"🫀",antidoul:"💊",cardio:"❤️",diabet:"🩸",vitam:"✨",neuro:"🧠",respirat:"🫁",dermato:"🧴"};
+const getCatIcon=(cat="")=>{const c=(cat||"").toLowerCase();const k=Object.keys(CAT_ICON).find(k=>c.includes(k));return k?CAT_ICON[k]:"💊"};
+const CAT_STRIPE={antibiot:"#4CAF50",allergi:"#8BC34A",gastro:"#00BCD4",antidoul:"#FF7043",cardio:"#E91E63",diabet:"#9C27B0",vitam:"#FFC107",default:"#1A7F48"};
+const getCatStripe=(cat="")=>{const c=(cat||"").toLowerCase();const k=Object.keys(CAT_STRIPE).find(k=>c.includes(k));return k?CAT_STRIPE[k]:CAT_STRIPE.default};
 
 function StoreFront({wsId}){
   const[drugs,setDrugs]=useState([]);const[wsName,setWsName]=useState("Pharmacie");const[loading,setLoading]=useState(true);
   const[cart,setCart]=useState([]);const[showPanel,setShowPanel]=useState(false);
   const[submitted,setSubmitted]=useState(false);const[submitting,setSubmitting]=useState(false);
   const[form,setForm]=useState({name:"",phone:"",notes:""});const[search,setSearch]=useState("");
-  const[lastOrder,setLastOrder]=useState(null);
+  const[lastOrder,setLastOrder]=useState(null);const[activeCat,setActiveCat]=useState("Tous");
   useEffect(()=>{
     const load=async()=>{
       const[{data:ws},{data:d}]=await Promise.all([
@@ -1330,7 +1395,8 @@ function StoreFront({wsId}){
   const addToCart=(drug)=>{setCart(prev=>{const ex=prev.find(i=>i.drug.id===drug.id);if(ex)return prev.map(i=>i.drug.id===drug.id?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]})};
   const updCart=(id,qty)=>setCart(prev=>qty<1?prev.filter(i=>i.drug.id!==id):prev.map(i=>i.drug.id===id?{...i,qty}:i));
   const cartCount=cart.reduce((s,i)=>s+i.qty,0);
-  const filtered=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.category&&d.category.toLowerCase().includes(q))});
+  const cats=["Tous",...[...new Set(drugs.map(d=>d.category||"Général"))].sort()];
+  const filtered=drugs.filter(d=>{const q=search.toLowerCase();const ms=d.name.toLowerCase().includes(q)||(d.category||"").toLowerCase().includes(q);const mc=activeCat==="Tous"||(d.category||"Général")===activeCat;return ms&&mc});
   const submitOrder=async()=>{
     if(!form.name.trim()||!cart.length)return;setSubmitting(true);
     const items=cart.map(i=>({name:i.drug.name,qty:i.qty,category:i.drug.category||""}));
@@ -1340,62 +1406,127 @@ function StoreFront({wsId}){
     setLastOrder({...data,items,form:{...form}});setSubmitted(true);setCart([]);
   };
   const waText=lastOrder?encodeURIComponent(`Bonjour ${wsName}, j'ai soumis une demande de devis. Nom: ${lastOrder.form.name}. Articles: ${lastOrder.items.map(i=>`${i.name} x${i.qty}`).join(", ")}.`):"";
-  if(loading)return(<><style>{SFCSS}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F4F7F5"}}><div style={{width:32,height:32,border:"3px solid #D4E4DB",borderTopColor:"#1A7F48",borderRadius:"50%",animation:"spin 1s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div></>);
+  const stockInfo=(d)=>d.stock>50?{cls:"sf-stock-ok",dot:"g",label:"En stock"}:d.stock>10?{cls:"sf-stock-warn",dot:"y",label:`Stock limité (${d.stock})`}:{cls:"sf-stock-low",dot:"r",label:`Derniers exemplaires (${d.stock})`};
+  const CartIcon=()=><svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>;
+  const XIcon=()=><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+  const CheckIcon=()=><svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#1A7F48" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>;
+  const WaIcon=()=><svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>;
+  if(loading)return(<><style>{SFCSS}</style><div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F4F7F5",gap:14}}><div style={{width:40,height:40,border:"3px solid #D4E4DB",borderTopColor:"#1A7F48",borderRadius:"50%",animation:"spin 1s linear infinite"}}/><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#1A7F48"}}>Chargement de la vitrine…</div><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div></>);
   return(<><style>{SFCSS}</style><div className="sf">
+    {/* ── Nav ── */}
     <nav className="sf-nav">
-      <div className="sf-nav-brand"><div><h1>{wsName}</h1><span>Vitrine en ligne</span></div></div>
+      <div className="sf-nav-brand">
+        <img src={LOGO} alt="Speranza" className="sf-nav-logo" onError={e=>e.target.style.display="none"}/>
+        <div className="sf-nav-txt"><h1>{wsName}</h1><span>Vitrine en ligne</span></div>
+      </div>
       <button className="sf-cart-btn" onClick={()=>setShowPanel(true)}>
-        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
-        Devis{cartCount>0&&<span className="sf-cart-badge">{cartCount}</span>}
+        <CartIcon/> Mon devis{cartCount>0&&<span className="sf-cart-badge">{cartCount}</span>}
       </button>
     </nav>
-    <div className="sf-body">
-      <div className="sf-search">
-        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input placeholder="Rechercher un médicament..." value={search} onChange={e=>setSearch(e.target.value)}/>
+
+    {/* ── Hero ── */}
+    <div className="sf-hero">
+      <div className="sf-hero-inner">
+        <div className="sf-hero-badge"><span className="dot"/>{drugs.length} produit{drugs.length!==1?"s":""} disponible{drugs.length!==1?"s":""}</div>
+        <h2>Nos médicaments,<br/><em>disponibles maintenant.</em></h2>
+        <p>Parcourez notre catalogue, ajoutez vos produits et envoyez une demande de devis. Nous vous contacterons rapidement.</p>
+        <div className="sf-search">
+          <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input placeholder="Rechercher par nom ou catégorie…" value={search} onChange={e=>{setSearch(e.target.value);setActiveCat("Tous")}}/>
+        </div>
+        <div className="sf-cats">
+          {cats.map(c=><button key={c} className={`sf-cat-pill ${activeCat===c?"on":""}`} onClick={()=>setActiveCat(c)}>{c}</button>)}
+        </div>
       </div>
-      {!filtered.length?<div className="sf-empty"><svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="#8AA69A" strokeWidth="1.5"><path d="M10.5 1.5l-8 8a5.66 5.66 0 008 8l8-8a5.66 5.66 0 00-8-8z"/><line x1="6" y1="14" x2="14" y2="6"/></svg><p>Aucun produit disponible.</p></div>:
-      <div className="sf-grid">{filtered.map(d=>{const inCart=cart.find(i=>i.drug.id===d.id);return(<div key={d.id} className={`sf-card ${inCart?"in-cart":""}`}>
-        <span className="sf-cat">{d.category||"Général"}</span>
-        <div className="sf-name">{d.name}</div>
-        <div className="sf-stock">{d.stock > 50 ? "En stock" : d.stock > 10 ? `Stock limité (${d.stock})` : `Derniers exemplaires (${d.stock})`}</div>
-        <button className="sf-add-btn" onClick={()=>{addToCart(d);setShowPanel(true)}}>{inCart?`✓ Dans le devis (×${inCart.qty})`:"Ajouter au devis"}</button>
-      </div>)})}</div>}
     </div>
-    <div className="sf-footer">Vitrine alimentée par Speranza Della Pharma · {wsName}</div>
-    {showPanel&&<div className="sf-overlay" onClick={()=>setShowPanel(false)}><div className="sf-panel" onClick={e=>e.stopPropagation()}>
-      <div className="sf-panel-h"><h3>{submitted?"Commande envoyée":"Votre demande de devis"}</h3><button className="sf-close" onClick={()=>setShowPanel(false)}><svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-      {submitted?(<div className="sf-success">
-        <svg width={48} height={48} viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/></svg>
-        <h4>Demande envoyée !</h4>
-        <p>Merci {lastOrder?.form?.name}. La pharmacie va traiter votre demande et vous contacter sous peu.</p>
-        {lastOrder?.form?.phone&&<a href={`https://wa.me/?text=${waText}`} target="_blank" rel="noopener noreferrer" className="sf-wa-btn">
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-          Contacter via WhatsApp
-        </a>}
-        <div style={{marginTop:16}}><button style={{padding:"8px 18px",border:"1px solid #D4E4DB",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:12,fontFamily:"'Outfit',sans-serif",color:"#4A6B5A"}} onClick={()=>{setSubmitted(false);setForm({name:"",phone:"",notes:""});setLastOrder(null)}}>Faire une nouvelle demande</button></div>
-      </div>):(<>
-        <div className="sf-items">
-          {!cart.length?<div style={{textAlign:"center",padding:"32px 0",color:"#8AA69A",fontSize:13}}>Ajoutez des médicaments depuis la vitrine.</div>:cart.map(item=>(
-            <div key={item.drug.id} className="sf-item">
-              <div style={{flex:1}}><div className="sf-item-name">{item.drug.name}</div><div className="sf-item-cat">{item.drug.category||"Général"}</div></div>
-              <div className="sf-qty">
-                <button onClick={()=>updCart(item.drug.id,item.qty-1)}>−</button>
-                <span>{item.qty}</span>
-                <button onClick={()=>updCart(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
+
+    {/* ── Grid ── */}
+    <div className="sf-body">
+      {!filtered.length
+        ?<div className="sf-empty">
+          <div className="sf-empty-icon"><svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#1A7F48" strokeWidth="1.5"><path d="M10.5 1.5l-8 8a5.66 5.66 0 008 8l8-8a5.66 5.66 0 00-8-8z"/><line x1="6" y1="14" x2="14" y2="6"/></svg></div>
+          <h4>Aucun produit trouvé</h4>
+          <p>Essayez une autre recherche ou catégorie.</p>
+        </div>
+        :<div className="sf-grid-wrap">
+          <h3>{activeCat==="Tous"?"Tous les produits":activeCat} — {filtered.length} article{filtered.length!==1?"s":""}</h3>
+          <div className="sf-grid">{filtered.map(d=>{const inCart=cart.find(i=>i.drug.id===d.id);const si=stockInfo(d);const stripe=getCatStripe(d.category);const icon=getCatIcon(d.category);return(
+            <div key={d.id} className={`sf-card ${inCart?"in-cart":""}`}>
+              <div className="sf-card-stripe" style={{background:stripe}}/>
+              <div className="sf-card-body">
+                <div className="sf-card-icon">{icon}</div>
+                <span className="sf-cat-badge">{d.category||"Général"}</span>
+                <div className="sf-name">{d.name}</div>
+                <div className="sf-stock-wrap"><span className={`sf-dot ${si.dot}`}/><span className={si.cls}>{si.label}</span></div>
+                <button className={`sf-add-btn ${inCart?"added":"idle"}`} onClick={()=>{if(!inCart){addToCart(d);setShowPanel(true)}}}>
+                  {inCart?`✓ Dans le devis (×${inCart.qty})`:"Ajouter au devis"}
+                </button>
               </div>
             </div>
-          ))}
+          )})}</div>
         </div>
-        {cart.length>0&&<div className="sf-form">
-          <h4>Vos coordonnées</h4>
-          <div className="sf-fi"><label>Nom complet *</label><input value={form.name} onChange={e=>sf("name",e.target.value)} placeholder="Ex: Jean Mukendi"/></div>
-          <div className="sf-fi"><label>Téléphone (WhatsApp)</label><input value={form.phone} onChange={e=>sf("phone",e.target.value)} placeholder="Ex: +243 81 234 5678" type="tel"/></div>
-          <div className="sf-fi"><label>Notes (optionnel)</label><textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} placeholder="Quantités spécifiques, questions..." rows={2}/></div>
-          <button className="sf-submit" onClick={submitOrder} disabled={!form.name.trim()||submitting}>{submitting?"Envoi en cours...":"Envoyer la demande de devis"}</button>
-        </div>}
-      </>)}
-    </div></div>}
+      }
+    </div>
+
+    {/* ── Footer ── */}
+    <div className="sf-footer">
+      <img src={LOGO} alt="" onError={e=>e.target.style.display="none"}/>
+      <span>Vitrine de {wsName}</span>
+      <span style={{color:"#D4E4DB"}}>·</span>
+      <span>Propulsé par <strong style={{color:"#1A7F48"}}>Speranza Della Pharma</strong></span>
+    </div>
+
+    {/* ── Cart panel ── */}
+    {showPanel&&<div className="sf-overlay" onClick={()=>setShowPanel(false)}>
+      <div className="sf-panel" onClick={e=>e.stopPropagation()}>
+        <div className="sf-panel-h">
+          <div><h3>{submitted?"Demande envoyée ✓":"Demande de devis"}</h3><p>{submitted?"Nous allons vous contacter.":cart.length>0?`${cartCount} article${cartCount!==1?"s":""} sélectionné${cartCount!==1?"s":""}`:"Votre panier est vide"}</p></div>
+          <button className="sf-close" onClick={()=>setShowPanel(false)}><XIcon/></button>
+        </div>
+        {submitted
+          ?<div className="sf-success">
+            <div className="sf-success-ring"><CheckIcon/></div>
+            <h4>Merci, {lastOrder?.form?.name} !</h4>
+            <p>Votre demande a bien été reçue par {wsName}. La pharmacie vous contactera sous peu pour confirmer la disponibilité et le prix.</p>
+            {lastOrder?.form?.phone&&<a href={`https://wa.me/?text=${waText}`} target="_blank" rel="noopener noreferrer" className="sf-wa-btn"><WaIcon/> Partager via WhatsApp</a>}
+            <button className="sf-new-btn" onClick={()=>{setSubmitted(false);setForm({name:"",phone:"",notes:""});setLastOrder(null)}}>Faire une nouvelle demande</button>
+          </div>
+          :<>
+            <div className="sf-items">
+              {!cart.length
+                ?<div style={{textAlign:"center",padding:"48px 20px",color:"#8AA69A"}}>
+                  <div style={{fontSize:36,marginBottom:10}}>🛒</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#4A6B5A",marginBottom:6}}>Votre devis est vide</div>
+                  <div style={{fontSize:12}}>Ajoutez des médicaments depuis la vitrine.</div>
+                </div>
+                :cart.map(item=>{const si=stockInfo(item.drug);return(
+                  <div key={item.drug.id} className="sf-item">
+                    <div className="sf-item-icon">{getCatIcon(item.drug.category)}</div>
+                    <div className="sf-item-info">
+                      <div className="sf-item-name">{item.drug.name}</div>
+                      <div className="sf-item-cat">{item.drug.category||"Général"} · <span className={si.cls}>{si.label}</span></div>
+                      <div className="sf-qty">
+                        <button onClick={()=>updCart(item.drug.id,item.qty-1)}>−</button>
+                        <span>{item.qty}</span>
+                        <button onClick={()=>updCart(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
+                        <button onClick={()=>updCart(item.drug.id,0)} style={{marginLeft:4,fontSize:12,color:"#EF4444",width:24,height:24}}>✕</button>
+                      </div>
+                    </div>
+                  </div>
+                )})
+              }
+            </div>
+            {cart.length>0&&<div className="sf-form">
+              <h4>Vos coordonnées</h4>
+              <div className="sf-fi"><label>Nom complet *</label><input value={form.name} onChange={e=>sf("name",e.target.value)} placeholder="Ex: Jean Mukendi"/></div>
+              <div className="sf-fi"><label>Téléphone (WhatsApp)</label><input value={form.phone} onChange={e=>sf("phone",e.target.value)} placeholder="+243 81 234 5678" type="tel"/></div>
+              <div className="sf-fi"><label>Notes (optionnel)</label><textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} placeholder="Quantités spécifiques, questions…" rows={2}/></div>
+              <button className="sf-submit" onClick={submitOrder} disabled={!form.name.trim()||submitting}>{submitting?"Envoi en cours…":"Envoyer la demande de devis →"}</button>
+            </div>}
+          </>
+        }
+      </div>
+    </div>}
   </div></>);
 }
 
