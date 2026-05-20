@@ -664,7 +664,7 @@ function DashApp({session,onLogout}){
   const flt=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.barcode&&d.barcode.includes(q))||(d.category&&d.category.toLowerCase().includes(q))});
   const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const pendingOrders=sfOrders.filter(o=>o.status==="pending").length;
-  const storeUrl=workspace&&workspace.id!==uid?`${window.location.origin}/store/${workspace.id}`:null;
+  const storeUrl=workspace?`${window.location.origin}/store/${workspace.id}`:null;
 
   const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Ruptures",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
   const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Ruptures de stock",commandes:"Commandes vitrine",team:"Équipe & Accès"};
@@ -1320,7 +1320,7 @@ function StoreFront({wsId}){
     const load=async()=>{
       const[{data:ws},{data:d}]=await Promise.all([
         supabase.from("workspaces").select("name").eq("id",wsId).single(),
-        supabase.from("drugs").select("*").eq("workspace_id",wsId).gt("stock",0).order("name"),
+        supabase.from("drugs").select("*").or(`workspace_id.eq.${wsId},user_id.eq.${wsId}`).gt("stock",0).order("name"),
       ]);
       if(ws)setWsName(ws.name);setDrugs(d||[]);setLoading(false);
     };
