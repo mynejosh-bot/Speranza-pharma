@@ -530,36 +530,48 @@ function DashApp({session,onLogout}){
     t2(`Vente confirmée · ${fmt(total)}`);
   };
 
-  const hCSV=async(text)=>{
+  const hCSV=async(text,pricesInFC=false)=>{
     const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;
     try{
       // Strip BOM, normalize line endings
       const clean=text.replace(/^﻿/,"").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
       const lines=clean.trim().split("\n").filter(l=>l.trim());
       if(lines.length<2)throw new Error("CSV invalide — au moins 2 lignes requises");
-      // Auto-detect delimiter: semicolon, tab, or comma
+      // Auto-detect delimiter
       const first=lines[0];
       const delim=first.includes(";")?";":first.includes("\t")?"\t":",";
-      // Normalize: remove accents via NFD, lowercase, strip non-alphanumeric
+      // Parse a CSV line respecting quoted fields (handles commas inside quotes)
+      const parseLine=line=>{
+        const fields=[];let f="";let inQ=false;
+        for(let i=0;i<line.length;i++){
+          const ch=line[i];
+          if(ch==='"'){inQ=!inQ;}
+          else if(ch===delim&&!inQ){fields.push(f);f="";}
+          else{f+=ch;}
+        }
+        fields.push(f);
+        return fields;
+      };
+      // Normalize header: remove accents, lowercase, alphanumeric only
       const norm=s=>s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
-      // Strip surrounding quotes from a cell value
       const unquote=s=>s?.trim().replace(/^["']|["']$/g,"").trim()||"";
       const parseNum=s=>parseFloat(unquote(s).replace(",","."))||0;
-      const h=first.split(delim).map(s=>norm(unquote(s)));
+      const convPrice=s=>{const v=parseNum(s);return pricesInFC?v/FC_RATE:v};
+      const h=parseLine(first).map(s=>norm(unquote(s)));
       const col=(...terms)=>h.findIndex(s=>terms.some(t=>s.includes(t)));
-      const ni=col("nom","name","drug","medic","produit","article","designation");
-      if(ni===-1)throw new Error(`Colonne "Nom" introuvable. En-têtes détectés : ${first.split(delim).slice(0,6).join(" | ")}`);
-      const bi=col("barcode","codebarre","code","ean");
-      const ci=col("categor","cat","type","famille");
-      const si=col("stock","qte","qty","quantit");
-      const pi=col("prix","price","pv","ventepu","pu");
-      const coi=col("cout","cost","achat","pa","prixachat");
+      const ni=col("nom","name","drug","medic","produit","article","designation","libelle");
+      if(ni===-1)throw new Error(`Colonne "Nom" introuvable. En-têtes détectés : ${parseLine(first).slice(0,8).join(" | ")}`);
+      const bi=col("barcode","codebarre","code","ean","ref");
+      const ci=col("categor","cat","type","famille","classe");
+      const si=col("stock","qte","qty","quantit","nombre");
+      const pi=col("prix","price","pv","ventepu","pu","tarif");
+      const coi=col("cout","cost","achat","pa","prixachat","revient");
       const ei=col("expir","exp","perempt","dlc","date");
-      const sui=col("fournisseur","supplier","fourni","vendor");
-      const mi=col("min","seuil","minimum");
+      const sui=col("fournisseur","supplier","fourni","vendor","marque");
+      const mi=col("min","seuil","minimum","alert");
       const imp=[];
       for(let i=1;i<lines.length;i++){
-        const c=lines[i].split(delim);
+        const c=parseLine(lines[i]);
         const name=unquote(c[ni]);
         if(!name)continue;
         imp.push({
@@ -567,8 +579,8 @@ function DashApp({session,onLogout}){
           barcode:bi>=0?unquote(c[bi]):"",
           category:ci>=0?unquote(c[ci])||"Général":"Général",
           stock:si>=0?parseInt(unquote(c[si]))||0:0,
-          price:pi>=0?parseNum(c[pi]):0,
-          cost_price:coi>=0?parseNum(c[coi]):0,
+          price:pi>=0?convPrice(c[pi]):0,
+          cost_price:coi>=0?convPrice(c[coi]):0,
           expiry_date:ei>=0&&unquote(c[ei])?unquote(c[ei]):null,
           supplier:sui>=0?unquote(c[sui]):"",
           min_stock:mi>=0?parseInt(unquote(c[mi]))||20:20,
@@ -929,19 +941,24 @@ function RM({drug,onClose,onRes}){
 
 /* ═══════ CSV IMPORT MODAL ═══════ */
 function CM({onClose,onImport,fileRef}){
-  const[drag,setDrag]=useState(false);const[pv,setPv]=useState(null);
+  const[drag,setDrag]=useState(false);const[pv,setPv]=useState(null);const[fc,setFc]=useState(true);
   const ref=fileRef||React.createRef();
-  const h=file=>{if(!file)return;const r=new FileReader();r.onload=e=>setPv(e.target.result);r.readAsText(file)};
-  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:480}}>
+  const h=file=>{if(!file)return;const r=new FileReader();r.onload=e=>setPv(e.target.result);r.readAsText(file,"UTF-8")};
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:500}}>
     <div className="mo-h"><h3>Importer CSV</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
     <div className="mo-b">
       <div className={`dz ${drag?"on":""}`} onDragOver={e=>{e.preventDefault();setDrag(true)}} onDragLeave={()=>setDrag(false)} onDrop={e=>{e.preventDefault();setDrag(false);h(e.dataTransfer.files[0])}} onClick={()=>ref.current?.click()}>
-        {Ic.upload({size:22})}<p><strong>Déposez un CSV</strong> ou cliquez</p>
-        <input ref={ref} type="file" accept=".csv" style={{display:'none'}} onChange={e=>h(e.target.files[0])}/>
+        {Ic.upload({size:22})}<p><strong>Déposez un fichier CSV</strong> ou cliquez pour choisir</p>
+        <p style={{fontSize:10,color:'var(--t3)',marginTop:4}}>Formats acceptés : virgule, point-virgule, tabulation</p>
+        <input ref={ref} type="file" accept=".csv,.txt" style={{display:'none'}} onChange={e=>h(e.target.files[0])}/>
       </div>
       {pv&&<pre style={{background:'var(--bg)',padding:7,borderRadius:6,fontSize:9,overflow:'auto',maxHeight:90,marginTop:8}}>{pv.split("\n").slice(0,5).join("\n")}</pre>}
+      <label style={{display:'flex',alignItems:'center',gap:8,marginTop:12,fontSize:12,cursor:'pointer',userSelect:'none'}}>
+        <input type="checkbox" checked={fc} onChange={e=>setFc(e.target.checked)} style={{width:15,height:15,cursor:'pointer'}}/>
+        <span>Les prix sont en <strong>FC</strong> (Francs Congolais) — ils seront convertis automatiquement</span>
+      </label>
     </div>
-    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onImport(pv)} disabled={!pv}>{Ic.upload({size:12})} Importer</button></div>
+    <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={()=>onImport(pv,fc)} disabled={!pv}>{Ic.upload({size:12})} Importer</button></div>
   </div></div>);
 }
 
