@@ -781,6 +781,19 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt,clientExtra={}}){
   const[address,setAddress]=useState("");
   const[notes,setNotes]=useState("");
   const[submitting,setSubmitting]=useState(false);
+  const[qtyBuf,setQtyBuf]=useState({});
+  const onQtyChange=(key,stock,raw)=>{
+    setQtyBuf(b=>({...b,[key]:raw}));
+    if(raw===""||raw==="0")return;
+    const n=parseInt(raw);
+    if(!isNaN(n)&&n>=1)upd(key,Math.min(n,stock));
+  };
+  const onQtyBlur=(key,currentQty)=>{
+    setQtyBuf(b=>{const{[key]:_,...rest}=b;return rest});
+    const raw=qtyBuf[key];if(raw===undefined)return;
+    const n=parseInt(raw);
+    if(isNaN(n)||n<1)upd(key,1);
+  };
   useEffect(()=>{
     const key=customer.trim().toLowerCase();
     if(!key)return;
@@ -822,7 +835,7 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt,clientExtra={}}){
                 </div>
                 <div className="qty-ctrl">
                   <button onClick={()=>upd(key,item.qty-1)}>−</button>
-                  <input type="number" min="1" max={item.drug.stock} value={item.qty} onChange={e=>{const v=parseInt(e.target.value)||0;upd(key,Math.max(0,Math.min(v,item.drug.stock)))}} style={{width:54,height:24,textAlign:"center",border:"1px solid var(--bd)",borderRadius:5,fontSize:13,fontWeight:600,outline:"none",padding:0}}/>
+                  <input type="number" min="1" max={item.drug.stock} value={qtyBuf[key]!==undefined?qtyBuf[key]:item.qty} onChange={e=>onQtyChange(key,item.drug.stock,e.target.value)} onBlur={()=>onQtyBlur(key,item.qty)} style={{width:54,height:24,textAlign:"center",border:"1px solid var(--bd)",borderRadius:5,fontSize:13,fontWeight:600,outline:"none",padding:0}}/>
                   <button onClick={()=>upd(key,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
                 </div>
                 <div className="cart-line-total">{fmt(line)}</div>
@@ -1425,7 +1438,21 @@ function StoreFront({wsId}){
   },[wsId]);
   const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
   const addToCart=(drug)=>{setCart(prev=>{const ex=prev.find(i=>i.drug.id===drug.id);if(ex)return prev.map(i=>i.drug.id===drug.id?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]})};
-  const updCart=(id,qty)=>setCart(prev=>qty<1?prev.filter(i=>i.drug.id!==id):prev.map(i=>i.drug.id===id?{...i,qty}:i));
+  const updCart=(id,qty)=>setCart(prev=>qty<1?prev.filter(i=>i.drug.id!==id):prev.map(i=>i.drug.id===id?{...i,qty:Math.min(qty,i.drug.stock)}:i));
+  const[sfQtyBuf,setSfQtyBuf]=useState({});
+  const onSfQtyChange=(id,stock,raw)=>{
+    setSfQtyBuf(b=>({...b,[id]:raw}));
+    if(raw===""||raw==="0")return;
+    const n=parseInt(raw);
+    if(!isNaN(n)&&n>=1)updCart(id,Math.min(n,stock));
+  };
+  const onSfQtyBlur=(id)=>{
+    const raw=sfQtyBuf[id];
+    setSfQtyBuf(b=>{const{[id]:_,...rest}=b;return rest});
+    if(raw===undefined)return;
+    const n=parseInt(raw);
+    if(isNaN(n)||n<1)updCart(id,1);
+  };
   const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const cats=["Tous",...[...new Set(drugs.map(d=>d.category||"Général"))].sort()];
   const filtered=drugs.filter(d=>{const q=search.toLowerCase();const ms=d.name.toLowerCase().includes(q)||(d.category||"").toLowerCase().includes(q);const mc=activeCat==="Tous"||(d.category||"Général")===activeCat;return ms&&mc});
@@ -1539,7 +1566,7 @@ function StoreFront({wsId}){
                       <div className="sf-item-cat">{item.drug.category||"Général"} · <span className={si.cls}>{si.label}</span></div>
                       <div className="sf-qty">
                         <button onClick={()=>updCart(item.drug.id,item.qty-1)}>−</button>
-                        <input type="number" min="1" max={item.drug.stock} value={item.qty} onChange={e=>{const v=parseInt(e.target.value)||0;updCart(item.drug.id,Math.max(0,Math.min(v,item.drug.stock)))}} style={{width:54,height:28,textAlign:"center",border:"1.5px solid #D4E4DB",borderRadius:8,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:13,color:"#1A2E23",outline:"none"}}/>
+                        <input type="number" min="1" max={item.drug.stock} value={sfQtyBuf[item.drug.id]!==undefined?sfQtyBuf[item.drug.id]:item.qty} onChange={e=>onSfQtyChange(item.drug.id,item.drug.stock,e.target.value)} onBlur={()=>onSfQtyBlur(item.drug.id)} style={{width:54,height:28,textAlign:"center",border:"1.5px solid #D4E4DB",borderRadius:8,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:13,color:"#1A2E23",outline:"none"}}/>
                         <button onClick={()=>updCart(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
                         <button onClick={()=>updCart(item.drug.id,0)} style={{marginLeft:4,fontSize:12,color:"#EF4444",width:24,height:24}}>✕</button>
                       </div>
