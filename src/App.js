@@ -535,7 +535,11 @@ function DashApp({session,onLogout}){
   const hDel=async(id)=>{const d=drugs.find(x=>x.id===id);if(!window.confirm(`Supprimer "${d?.name}" ?`))return;await supabase.from("sales").delete().eq("drug_id",id);await supabase.from("drugs").delete().eq("id",id);await rlD();await rlS();t2(`${d?.name} supprimé`,"er")};
   const hRes=async(did,qty)=>{const d=drugs.find(x=>x.id===did);if(!d||qty<1)return;const{error}=await supabase.from("drugs").update({stock:d.stock+qty}).eq("id",did);if(error){t2("Erreur","er");return}await rlD();t2(`+${qty} ${d.name}`);setModal(null)};
 
-  const hCartSell=async(cartItems,customerName)=>{
+  const hCartSell=async(cartItems,customerInfo)=>{
+    const customerName=typeof customerInfo==="string"?customerInfo:(customerInfo?.name||"");
+    const customerPhone=customerInfo?.phone||"";
+    const customerAddress=customerInfo?.address||"";
+    const customerNotes=customerInfo?.notes||"";
     const ws=workspaceRef.current;const invNum=genInv();
     const wsId=ws?.id&&ws.id!==uid?ws.id:null;
     const salesData=cartItems.map(item=>({
@@ -552,6 +556,12 @@ function DashApp({session,onLogout}){
     if(error){t2("Erreur: "+error.message,"er");return}
     for(const item of cartItems){const d=drugs.find(x=>x.id===item.drug.id);if(d)await supabase.from("drugs").update({stock:d.stock-item.qty}).eq("id",item.drug.id)}
     await rlD();await rlS();
+    if(customerName&&(customerPhone||customerAddress||customerNotes)){
+      const key=customerName.trim().toLowerCase();
+      const prev=clientExtra[key]||{};
+      const merged={...prev,phone:customerPhone||prev.phone||"",address:customerAddress||prev.address||"",notes:customerNotes||prev.notes||""};
+      saveClientExtra({...clientExtra,[key]:merged});
+    }
     const total=cartItems.reduce((s,i)=>s+i.drug.price*i.qty,0);
     setInvoice({number:invNum,date:today(),customer:customerName,items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),total});
     setCart([]);setShowCart(false);
@@ -666,8 +676,8 @@ function DashApp({session,onLogout}){
   const pendingOrders=sfOrders.filter(o=>o.status==="pending").length;
   const storeUrl=workspace?`${window.location.origin}/store/${workspace.id}`:null;
 
-  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Ruptures",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
-  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Ruptures de stock",commandes:"Commandes vitrine",team:"Équipe & Accès"};
+  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Demandes",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
+  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Demandes de médicaments",commandes:"Commandes vitrine",team:"Équipe & Accès"};
 
   if(loading)return(<><style>{DCSS}</style><div className="ld-ov"><div className="spin"/><p style={{marginTop:12,color:'#4A6B5A',fontSize:12}}>Chargement...</p></div></>);
 
@@ -720,7 +730,7 @@ function DashApp({session,onLogout}){
     {modal?.type==="edit"&&<DF title="Modifier" drug={modal.drug} onClose={()=>setModal(null)} onSave={hEdit}/>}
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
-    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onClose={()=>setShowCart(false)} fmt={fmtFC}/>}
+    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
     {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
@@ -765,10 +775,30 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel}){
 }
 
 /* ═══════ CART MODAL ═══════ */
-function CartModal({cart,setCart,onConfirm,onClose,fmt}){
+function CartModal({cart,setCart,onConfirm,onClose,fmt,clientExtra={}}){
   const[customer,setCustomer]=useState("");
+  const[phone,setPhone]=useState("");
+  const[address,setAddress]=useState("");
+  const[notes,setNotes]=useState("");
+  const[submitting,setSubmitting]=useState(false);
+  useEffect(()=>{
+    const key=customer.trim().toLowerCase();
+    if(!key)return;
+    const existing=clientExtra[key];
+    if(existing){
+      if(!phone&&existing.phone)setPhone(existing.phone);
+      if(!address&&existing.address)setAddress(existing.address);
+    }
+    // eslint-disable-next-line
+  },[customer]);
   const dk=d=>d.id||d.name;
   const upd=(key,qty)=>setCart(prev=>qty<1?prev.filter(i=>dk(i.drug)!==key):prev.map(i=>dk(i.drug)===key?{...i,qty:Math.min(qty,i.drug.stock)}:i));
+  const handleConfirm=async()=>{
+    if(submitting||cart.length===0)return;
+    setSubmitting(true);
+    try{await onConfirm(cart,{name:customer,phone,address,notes});}
+    finally{setSubmitting(false);}
+  };
   const subtotal=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
   const totalQty=cart.reduce((s,i)=>s+i.qty,0);
   return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:'min(860px,94vw)',maxHeight:'92vh'}}>
@@ -792,7 +822,7 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt}){
                 </div>
                 <div className="qty-ctrl">
                   <button onClick={()=>upd(key,item.qty-1)}>−</button>
-                  <span>{item.qty}</span>
+                  <input type="number" min="1" max={item.drug.stock} value={item.qty} onChange={e=>{const v=parseInt(e.target.value)||0;upd(key,Math.max(0,Math.min(v,item.drug.stock)))}} style={{width:54,height:24,textAlign:"center",border:"1px solid var(--bd)",borderRadius:5,fontSize:13,fontWeight:600,outline:"none",padding:0}}/>
                   <button onClick={()=>upd(key,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
                 </div>
                 <div className="cart-line-total">{fmt(line)}</div>
@@ -800,9 +830,11 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt}){
               </div>
             )})}
           </div>
-          <div className="fi" style={{marginTop:16}}>
-            <label>Nom du client (optionnel)</label>
-            <input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Ex: Jean Mukendi" onKeyDown={e=>e.key==="Enter"&&cart.length>0&&onConfirm(cart,customer)}/>
+          <div style={{marginTop:16,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div className="fi"><label>Nom du client (optionnel)</label><input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Ex: Jean Mukendi"/></div>
+            <div className="fi"><label>Téléphone (optionnel)</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+243 81 234 5678" type="tel"/></div>
+            <div className="fi" style={{gridColumn:"1 / -1"}}><label>Adresse (optionnel)</label><input value={address} onChange={e=>setAddress(e.target.value)} placeholder="Quartier, commune…"/></div>
+            <div className="fi" style={{gridColumn:"1 / -1"}}><label>Notes (optionnel)</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Remarques sur la vente…"/></div>
           </div>
           <div className="cart-summary">
             {cart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
@@ -813,8 +845,8 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt}){
     </div>
     <div className="mo-f" style={{justifyContent:'space-between',alignItems:'center'}}>
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
-      <button className="bt bt-ok" onClick={()=>onConfirm(cart,customer)} disabled={cart.length===0} style={{padding:'10px 22px',fontSize:13,gap:7}}>
-        {Ic.check({size:13})} Confirmer la vente · {fmt(subtotal)}
+      <button className="bt bt-ok" onClick={handleConfirm} disabled={cart.length===0||submitting} style={{padding:'10px 22px',fontSize:13,gap:7,opacity:submitting?.6:1}}>
+        {Ic.check({size:13})} {submitting?"Traitement…":`Confirmer la vente · ${fmt(subtotal)}`}
       </button>
     </div>
   </div></div>);
@@ -1184,18 +1216,18 @@ function RupturesPage({ruptures,onAdd,onDel}){
   const submit=()=>{if(!f.name.trim())return;onAdd({...f});setF({name:"",askedBy:"",notes:""})};
   return(<div>
     <div className="tc" style={{marginBottom:14}}>
-      <div className="th2"><h3>Signaler une rupture</h3></div>
+      <div className="th2"><h3>Enregistrer une demande</h3></div>
       <div className="rup-form">
         <div className="fi full"><label>Médicament demandé *</label><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Ex: Augmentin 500mg" autoFocus/></div>
         <div className="fi"><label>Demandé par</label><input value={f.askedBy} onChange={e=>s("askedBy",e.target.value)} placeholder="Nom du client"/></div>
         <div className="fi"><label>Notes</label><input value={f.notes} onChange={e=>s("notes",e.target.value)} placeholder="Quantité, urgence..."/></div>
       </div>
-      <div style={{padding:"0 18px 14px"}}><button className="bt bt-p" onClick={submit} disabled={!f.name.trim()}>{Ic.plus({size:12})} Signaler</button></div>
+      <div style={{padding:"0 18px 14px"}}><button className="bt bt-p" onClick={submit} disabled={!f.name.trim()}>{Ic.plus({size:12})} Enregistrer</button></div>
     </div>
     <div className="tc">
-      <div className="th2"><h3>Ruptures signalées</h3><span style={{fontSize:10,color:"var(--t3)"}}>{ruptures.length} produit{ruptures.length!==1?"s":""}</span></div>
+      <div className="th2"><h3>Demandes enregistrées</h3><span style={{fontSize:10,color:"var(--t3)"}}>{ruptures.length} produit{ruptures.length!==1?"s":""}</span></div>
       {!ruptures.length
-        ?<div className="emp">{Ic.clipboard({size:28,color:"var(--t3)"})}<p>Aucune rupture signalée.</p></div>
+        ?<div className="emp">{Ic.clipboard({size:28,color:"var(--t3)"})}<p>Aucune demande enregistrée.</p></div>
         :ruptures.map(r=><div key={r.id} className="rup-row">
           <div style={{flex:1}}>
             <div style={{fontWeight:600,fontSize:12,color:"var(--t)"}}>{r.name}</div>
@@ -1417,7 +1449,7 @@ function StoreFront({wsId}){
     <nav className="sf-nav">
       <div className="sf-nav-brand">
         <img src={LOGO} alt="Speranza" className="sf-nav-logo" onError={e=>e.target.style.display="none"}/>
-        <div className="sf-nav-txt"><h1>{wsName}</h1><span>Vitrine en ligne</span></div>
+        <div className="sf-nav-txt"><h1>Speranza Della Pharma</h1><span>Dépôt Pharmaceutique</span></div>
       </div>
       <button className="sf-cart-btn" onClick={()=>setShowPanel(true)}>
         <CartIcon/> Mon devis{cartCount>0&&<span className="sf-cart-badge">{cartCount}</span>}
@@ -1471,7 +1503,7 @@ function StoreFront({wsId}){
     {/* ── Footer ── */}
     <div className="sf-footer">
       <img src={LOGO} alt="" onError={e=>e.target.style.display="none"}/>
-      <span>Vitrine de {wsName}</span>
+      <span>Dépôt Pharmaceutique Speranza Della Pharma</span>
       <span style={{color:"#D4E4DB"}}>·</span>
       <span>Propulsé par <strong style={{color:"#1A7F48"}}>Speranza Della Pharma</strong></span>
     </div>
@@ -1487,7 +1519,7 @@ function StoreFront({wsId}){
           ?<div className="sf-success">
             <div className="sf-success-ring"><CheckIcon/></div>
             <h4>Merci, {lastOrder?.form?.name} !</h4>
-            <p>Votre demande a bien été reçue par {wsName}. La pharmacie vous contactera sous peu pour confirmer la disponibilité et le prix.</p>
+            <p>Votre demande a bien été reçue. Nous vous contacterons sous peu pour confirmer la disponibilité et le prix.</p>
             {lastOrder?.form?.phone&&<a href={`https://wa.me/?text=${waText}`} target="_blank" rel="noopener noreferrer" className="sf-wa-btn"><WaIcon/> Partager via WhatsApp</a>}
             <button className="sf-new-btn" onClick={()=>{setSubmitted(false);setForm({name:"",phone:"",notes:""});setLastOrder(null)}}>Faire une nouvelle demande</button>
           </div>
@@ -1507,7 +1539,7 @@ function StoreFront({wsId}){
                       <div className="sf-item-cat">{item.drug.category||"Général"} · <span className={si.cls}>{si.label}</span></div>
                       <div className="sf-qty">
                         <button onClick={()=>updCart(item.drug.id,item.qty-1)}>−</button>
-                        <span>{item.qty}</span>
+                        <input type="number" min="1" max={item.drug.stock} value={item.qty} onChange={e=>{const v=parseInt(e.target.value)||0;updCart(item.drug.id,Math.max(0,Math.min(v,item.drug.stock)))}} style={{width:54,height:28,textAlign:"center",border:"1.5px solid #D4E4DB",borderRadius:8,fontFamily:"'Outfit',sans-serif",fontWeight:700,fontSize:13,color:"#1A2E23",outline:"none"}}/>
                         <button onClick={()=>updCart(item.drug.id,item.qty+1)} disabled={item.qty>=item.drug.stock}>+</button>
                         <button onClick={()=>updCart(item.drug.id,0)} style={{marginLeft:4,fontSize:12,color:"#EF4444",width:24,height:24}}>✕</button>
                       </div>
