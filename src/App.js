@@ -431,6 +431,23 @@ tbody td{padding:8px 11px;vertical-align:middle}
 @media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}.sb-vitrine{display:none}.sb-vitrine-full{display:none}}
 `;
 
+/* ═══════ PERMISSIONS ═══════ */
+const PERMS=[
+  {k:"dashboard",label:"Tableau de bord"},
+  {k:"inventory",label:"Inventaire (voir & modifier)"},
+  {k:"cart",label:"Panier & ventes"},
+  {k:"sales",label:"Analytique des ventes"},
+  {k:"alerts",label:"Alertes & expiration"},
+  {k:"clients",label:"Clients & CRM"},
+  {k:"ruptures",label:"Demandes de médicaments"},
+  {k:"commandes",label:"Commandes vitrine"},
+  {k:"data",label:"Import / Export / Vider"},
+  {k:"team",label:"Gestion de l'équipe"},
+];
+const ALL_PERMS=()=>Object.fromEntries(PERMS.map(p=>[p.k,true]));
+const MEMBER_DEFAULT_PERMS=()=>({dashboard:true,inventory:true,cart:true,sales:false,alerts:true,clients:true,ruptures:true,commandes:true,data:false,team:false});
+const can=(perms,key)=>!perms||perms[key]===undefined||perms[key]===true;
+
 /* ═══════ WORKSPACE SETUP ═══════ */
 async function setupWorkspace(user){
   // 1. Accept any pending invites for this email
@@ -640,10 +657,10 @@ function DashApp({session,onLogout}){
     await rlD();t2("Inventaire vidé","er");
   };
 
-  const hInvite=async(email)=>{
+  const hInvite=async(email,permissions)=>{
     const ws=workspaceRef.current;if(!ws)return;
     if(members.find(m=>m.email.toLowerCase()===email.toLowerCase())){t2("Cet e-mail est déjà invité","er");return}
-    const{error}=await supabase.from("workspace_members").insert({workspace_id:ws.id,email,role:"member"});
+    const{error}=await supabase.from("workspace_members").insert({workspace_id:ws.id,email,role:"member",permissions:permissions||MEMBER_DEFAULT_PERMS()});
     if(error){t2("Erreur: "+error.message,"er");return}
     await loadMembers();t2(`Invitation envoyée à ${email}`);
   };
@@ -652,6 +669,11 @@ function DashApp({session,onLogout}){
     const{error}=await supabase.from("workspace_members").delete().eq("id",memberId);
     if(error){t2("Erreur","er");return}
     await loadMembers();t2("Membre retiré");
+  };
+  const hUpdatePerms=async(memberId,permissions)=>{
+    const{error}=await supabase.from("workspace_members").update({permissions}).eq("id",memberId);
+    if(error){t2("Erreur: "+error.message,"er");return}
+    await loadMembers();t2("Permissions mises à jour");
   };
 
   const saveRuptures=(r)=>{setRuptures(r);localStorage.setItem(`sp_ruptures_${uid}`,JSON.stringify(r))};
@@ -676,7 +698,15 @@ function DashApp({session,onLogout}){
   const pendingOrders=sfOrders.filter(o=>o.status==="pending").length;
   const storeUrl=workspace?`${window.location.origin}/store/${workspace.id}`:null;
 
-  const nav=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Demandes",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
+  const isOwner=workspace?.owner_id===uid;
+  const myMember=members.find(m=>m.user_id===uid);
+  const myPerms=isOwner?ALL_PERMS():(myMember?.permissions||MEMBER_DEFAULT_PERMS());
+  const allowed=(k)=>can(myPerms,k);
+  const navAll=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Demandes",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
+  const nav=navAll.filter(n=>allowed(n.id));
+  useEffect(()=>{if(nav.length&&!nav.find(n=>n.id===page))setPage(nav[0].id);
+    // eslint-disable-next-line
+  },[nav.map(n=>n.id).join(",")]);
   const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Demandes de médicaments",commandes:"Commandes vitrine",team:"Équipe & Accès"};
 
   if(loading)return(<><style>{DCSS}</style><div className="ld-ov"><div className="spin"/><p style={{marginTop:12,color:'#4A6B5A',fontSize:12}}>Chargement...</p></div></>);
@@ -697,10 +727,10 @@ function DashApp({session,onLogout}){
             </div>
           </>:<div style={{fontSize:9,color:"rgba(255,255,255,.4)",lineHeight:1.5,marginTop:2}}>Lien disponible après configuration de votre espace de travail.</div>}
         </div>
-        <div className="sb-lbl" style={{marginTop:"auto"}}>Données</div>
+        {allowed("data")&&<><div className="sb-lbl" style={{marginTop:"auto"}}>Données</div>
         <button className="sb-btn" onClick={()=>setModal({type:"csv"})}>{Ic.upload({size:15})}<span>Importer CSV</span></button>
         <button className="sb-btn" onClick={expCSV}>{Ic.download({size:15})}<span>Exporter CSV</span></button>
-        <button className="sb-btn" onClick={hClearAll} style={{color:'#F87171'}}>{Ic.trash({size:15})}<span>Vider l'inventaire</span></button>
+        <button className="sb-btn" onClick={hClearAll} style={{color:'#F87171'}}>{Ic.trash({size:15})}<span>Vider l'inventaire</span></button></>}
       </nav>
     </aside>
     <main className="mn">
@@ -708,9 +738,9 @@ function DashApp({session,onLogout}){
         <h2>{titles[page]}</h2>
         <div className="top-a">
           {(page==="dashboard"||page==="inventory")&&<div className="srch"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)}/></div>}
-          {(page==="dashboard"||page==="inventory")&&<button className="bt bt-p" onClick={()=>setModal({type:"add"})}>{Ic.plus({size:13})} Ajouter</button>}
+          {(page==="dashboard"||page==="inventory")&&allowed("inventory")&&<button className="bt bt-p" onClick={()=>setModal({type:"add"})}>{Ic.plus({size:13})} Ajouter</button>}
           <button className="bt bt-s curr-toggle" onClick={toggleCurrency} title={`Basculer vers ${currency==="USD"?"FC":"USD"}`}>{currency==="USD"?"$ USD":"FC"}</button>
-          <button className="bt bt-s cart-top" onClick={()=>setShowCart(true)} title="Voir le panier">{Ic.cart({size:15})}{cartCount>0&&<span className="cart-badge">{cartCount}</span>}</button>
+          {allowed("cart")&&<button className="bt bt-s cart-top" onClick={()=>setShowCart(true)} title="Voir le panier">{Ic.cart({size:15})}{cartCount>0&&<span className="cart-badge">{cartCount}</span>}</button>}
           <button className="bt bt-g" onClick={()=>setShowTour(true)} title="Guide">{Ic.help({size:15})}</button>
           <button className="bt bt-g" onClick={onLogout} title="Déconnexion" style={{color:'var(--d)'}}>{Ic.logout({size:15})}</button>
         </div>
@@ -723,7 +753,7 @@ function DashApp({session,onLogout}){
         {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
         {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
         {page==="commandes"&&<StorefrontOrdersPage orders={sfOrders} onUpdateStatus={hUpdateOrderStatus}/>}
-        {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember}/>}
+        {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember} onUpdatePerms={hUpdatePerms}/>}
       </div>
     </main>
     {modal?.type==="add"&&<DF title="Ajouter un médicament" onClose={()=>setModal(null)} onSave={hAdd}/>}
@@ -1063,11 +1093,25 @@ function CM({onClose,onImport,fileRef}){
 }
 
 /* ═══════ TEAM PAGE ═══════ */
-function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember}){
+function PermissionsGrid({perms,onChange,disabled}){
+  return(<div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6,marginTop:10}}>
+    {PERMS.map(p=><label key={p.k} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 10px',background:'var(--bg)',borderRadius:8,fontSize:11,cursor:disabled?'default':'pointer',opacity:disabled?.7:1,border:'1px solid var(--bd2)'}}>
+      <input type="checkbox" checked={!!perms[p.k]} disabled={disabled} onChange={e=>onChange({...perms,[p.k]:e.target.checked})} style={{width:14,height:14,cursor:disabled?'default':'pointer',accentColor:'var(--ac)'}}/>
+      <span style={{color:'var(--t)'}}>{p.label}</span>
+    </label>)}
+  </div>);
+}
+function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpdatePerms}){
   const[email,setEmail]=useState("");const[busy,setBusy]=useState(false);
+  const[invitePerms,setInvitePerms]=useState(MEMBER_DEFAULT_PERMS());
+  const[editingId,setEditingId]=useState(null);const[editPerms,setEditPerms]=useState({});
   if(!workspace)return<div className="emp"><p>Chargement de l'espace de travail...</p></div>;
   const isOwner=workspace?.owner_id===currentUserId;
-  const handleInvite=async()=>{if(!email.trim())return;setBusy(true);await onInvite(email.trim().toLowerCase());setEmail("");setBusy(false)};
+  const handleInvite=async()=>{if(!email.trim())return;setBusy(true);await onInvite(email.trim().toLowerCase(),invitePerms);setEmail("");setInvitePerms(MEMBER_DEFAULT_PERMS());setBusy(false)};
+  const openEditPerms=(m)=>{setEditingId(m.id);setEditPerms(m.permissions||MEMBER_DEFAULT_PERMS())};
+  const savePerms=async()=>{await onUpdatePerms(editingId,editPerms);setEditingId(null)};
+  const presetAll=()=>setInvitePerms(ALL_PERMS());
+  const presetMin=()=>setInvitePerms({dashboard:true,inventory:false,cart:false,sales:false,alerts:false,clients:false,ruptures:false,commandes:false,data:false,team:false});
   const activeCount=members.filter(m=>m.accepted_at).length;
   const pendingCount=members.filter(m=>!m.accepted_at).length;
   return(<div>
@@ -1088,17 +1132,33 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember}){
     <div className="tc" style={{marginBottom:14}}>
       <div className="th2"><h3>Membres de l'équipe</h3><span style={{fontSize:10,color:'var(--t3)'}}>{members.length} personne{members.length!==1?"s":""}</span></div>
       {members.length===0?<div className="emp"><p>Aucun membre pour l'instant</p></div>:
-      members.map(m=><div key={m.id} className="team-member-row">
-        <div className="team-avatar">{m.email[0].toUpperCase()}</div>
-        <div style={{flex:1}}>
-          <div style={{fontWeight:600,fontSize:12}}>{m.email}</div>
-          <div className={`team-status ${m.accepted_at?"active":"pending"}`}>
-            {m.accepted_at?"● Actif":"○ Invitation en attente"}
+      members.map(m=>{const editing=editingId===m.id;const summary=m.role==="owner"?"Tous les accès":(()=>{const p=m.permissions||MEMBER_DEFAULT_PERMS();const on=PERMS.filter(x=>p[x.k]).length;return `${on}/${PERMS.length} accès`})();return(<div key={m.id} style={{borderBottom:'1px solid var(--bd2)'}}>
+        <div className="team-member-row">
+          <div className="team-avatar">{m.email[0].toUpperCase()}</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:600,fontSize:12}}>{m.email}</div>
+            <div className={`team-status ${m.accepted_at?"active":"pending"}`}>
+              {m.accepted_at?"● Actif":"○ Invitation en attente"}
+            </div>
+            <div style={{fontSize:10,color:'var(--t3)',marginTop:2}}>{summary}</div>
           </div>
+          <span className={`team-role ${m.role}`}>{m.role==="owner"?"Propriétaire":"Membre"}</span>
+          {isOwner&&m.role!=="owner"&&<>
+            <button className="bt bt-g bt-sm" onClick={()=>editing?setEditingId(null):openEditPerms(m)} title="Modifier les permissions">{Ic.edit({size:11})}</button>
+            <button className="bt bt-g bt-sm" onClick={()=>onRemoveMember(m.id)} style={{color:'var(--d)'}} title="Retirer">{Ic.x({size:11})}</button>
+          </>}
         </div>
-        <span className={`team-role ${m.role}`}>{m.role==="owner"?"Propriétaire":"Membre"}</span>
-        {isOwner&&m.role!=="owner"&&<button className="bt bt-g bt-sm" onClick={()=>onRemoveMember(m.id)} style={{color:'var(--d)'}} title="Retirer">{Ic.x({size:11})}</button>}
-      </div>)}
+        {editing&&<div style={{padding:'12px 16px 16px',background:'var(--bg)'}}>
+          <div style={{fontSize:11,fontWeight:600,color:'var(--t)',marginBottom:4}}>Permissions de {m.email}</div>
+          <div style={{fontSize:10,color:'var(--t3)'}}>Cochez les sections auxquelles ce membre peut accéder.</div>
+          <PermissionsGrid perms={editPerms} onChange={setEditPerms}/>
+          <div style={{display:'flex',gap:6,marginTop:10}}>
+            <button className="bt bt-p bt-sm" onClick={savePerms}>{Ic.check({size:11})} Enregistrer</button>
+            <button className="bt bt-s bt-sm" onClick={()=>setEditingId(null)}>Annuler</button>
+            <button className="bt bt-s bt-sm" onClick={()=>setEditPerms(ALL_PERMS())}>Tout cocher</button>
+          </div>
+        </div>}
+      </div>)})}
     </div>
 
     {/* Invite form — owner only */}
@@ -1106,12 +1166,20 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember}){
       <div className="th2"><h3>Inviter un collaborateur</h3></div>
       <div className="team-invite-box">
         <p style={{fontSize:12,color:'var(--t3)',lineHeight:1.6,marginBottom:12}}>
-          Entrez l'adresse e-mail du collaborateur. Cette personne doit créer un compte avec cette adresse exacte — elle aura alors automatiquement accès à tout l'inventaire et aux ventes partagés.
+          Entrez l'adresse e-mail du collaborateur. Cette personne doit créer un compte avec cette adresse exacte — elle rejoindra automatiquement votre espace de travail avec les permissions choisies ci-dessous.
         </p>
-        <div style={{display:'flex',gap:8}}>
+        <div style={{display:'flex',gap:8,marginBottom:14}}>
           <div style={{flex:1}}><input className="fi input" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleInvite()} placeholder="collaborateur@exemple.com" style={{width:'100%',padding:'7px 9px',border:'1px solid var(--bd)',borderRadius:'var(--rs)',fontSize:12,fontFamily:"'Outfit',sans-serif",color:'var(--t)',outline:'none'}}/></div>
           <button className="bt bt-p" onClick={handleInvite} disabled={!email.trim()||busy}>{Ic.plus({size:13})} {busy?"...":"Inviter"}</button>
         </div>
+        <div style={{fontSize:11,fontWeight:600,color:'var(--t)',marginBottom:4,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <span>Permissions accordées</span>
+          <span style={{display:'flex',gap:6}}>
+            <button type="button" className="bt bt-s bt-sm" onClick={presetAll}>Tout cocher</button>
+            <button type="button" className="bt bt-s bt-sm" onClick={presetMin}>Lecture seule</button>
+          </span>
+        </div>
+        <PermissionsGrid perms={invitePerms} onChange={setInvitePerms}/>
       </div>
     </div>}
 
@@ -1350,7 +1418,9 @@ body{font-family:'Outfit',sans-serif;background:#F4F7F5;color:#1A2E23;-webkit-fo
 .sf-add-btn{margin-top:auto;padding:10px 0;border:none;border-radius:10px;font-size:12px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .2s;width:100%;letter-spacing:.2px}
 .sf-add-btn.idle{background:linear-gradient(135deg,#1A7F48,#0F4C2A);color:#fff;box-shadow:0 2px 8px rgba(15,76,42,.18)}
 .sf-add-btn.idle:hover{box-shadow:0 5px 16px rgba(15,76,42,.3);transform:translateY(-1px)}
-.sf-add-btn.added{background:linear-gradient(135deg,#E6F5EC,#D0EDD8);color:#1A7F48;cursor:default}
+.sf-add-btn.added{background:linear-gradient(135deg,#E6F5EC,#D0EDD8);color:#1A7F48}
+.sf-add-btn.added:hover:not(:disabled){background:linear-gradient(135deg,#D0EDD8,#B8E0C2)}
+.sf-add-btn:disabled{opacity:.5;cursor:not-allowed}
 /* ── Empty state ── */
 .sf-empty{text-align:center;padding:80px 20px;color:#8AA69A}
 .sf-empty-icon{width:80px;height:80px;margin:0 auto 20px;background:linear-gradient(135deg,#E6F5EC,#D0EDD8);border-radius:50%;display:flex;align-items:center;justify-content:center}
@@ -1517,8 +1587,8 @@ function StoreFront({wsId}){
                 <span className="sf-cat-badge">{d.category||"Général"}</span>
                 <div className="sf-name">{d.name}</div>
                 <div className="sf-stock-wrap"><span className={`sf-dot ${si.dot}`}/><span className={si.cls}>{si.label}</span></div>
-                <button className={`sf-add-btn ${inCart?"added":"idle"}`} onClick={()=>{if(!inCart){addToCart(d);setShowPanel(true)}}}>
-                  {inCart?`✓ Dans le devis (×${inCart.qty})`:"Ajouter au devis"}
+                <button className={`sf-add-btn ${inCart?"added":"idle"}`} onClick={()=>{if(!inCart)addToCart(d);else updCart(d.id,inCart.qty+1)}} disabled={inCart&&inCart.qty>=d.stock}>
+                  {inCart?`✓ Ajouté (×${inCart.qty})`:"Ajouter au devis"}
                 </button>
               </div>
             </div>
