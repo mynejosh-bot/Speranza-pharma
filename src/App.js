@@ -515,13 +515,23 @@ function DashApp({session,onLogout}){
     ]);
     setMembers(m||[]);setSales(s||[]);setSfOrders(sfo||[]);
     // Only migrate to workspace if it's a real DB workspace (not the synthetic fallback)
+    let drugsRows=d;
     if(ws.id!==uid){
-      if(d?.some(x=>x.workspace_id!==ws.id)) supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid);
-      if(s?.some(x=>x.workspace_id!==ws.id)) supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid);
+      const needDrugs=d?.some(x=>x.workspace_id!==ws.id);
+      const needSales=s?.some(x=>x.workspace_id!==ws.id);
+      if(needDrugs||needSales){
+        await Promise.all([
+          needDrugs?supabase.from("drugs").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null):Promise.resolve(),
+          needSales?supabase.from("sales").update({workspace_id:ws.id}).eq("user_id",uid).is("workspace_id",null):Promise.resolve(),
+        ]);
+        // Re-fetch so local rows reflect the freshly-assigned workspace_id
+        const{data:d2}=await supabase.from("drugs").select("*").or(`workspace_id.eq.${ws.id},user_id.eq.${uid}`).order("name");
+        if(d2)drugsRows=d2;
+      }
     }
-    if(d&&d.length>0){
+    if(drugsRows&&drugsRows.length>0){
       // Real data from DB — use it
-      setDrugs(d);
+      setDrugs(drugsRows);
     }else{
       // DB returned nothing (empty table, RLS block, or query error) — SAMPLE is already showing.
       // Try to seed into DB in the background; if it works, replace with persisted rows.
@@ -1500,7 +1510,7 @@ function StoreFront({wsId}){
     const load=async()=>{
       const[{data:ws},{data:d}]=await Promise.all([
         supabase.from("workspaces").select("name").eq("id",wsId).single(),
-        supabase.from("drugs").select("*").or(`workspace_id.eq.${wsId},user_id.eq.${wsId}`).gt("stock",0).order("name"),
+        supabase.from("drugs").select("*").eq("workspace_id",wsId).gt("stock",0).order("name"),
       ]);
       if(ws)setWsName(ws.name);setDrugs(d||[]);setLoading(false);
     };
