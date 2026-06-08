@@ -1,0 +1,97 @@
+Nom,Code,Categorie,Stock,Prix,Cout,Expiration,Fournisseur,Min
+Paracetamol 500mg,6291001100001,Antidouleur,250,1500,900,2027-08-15,Pharmakina,40
+Paracetamol 1g,6291001100002,Antidouleur,180,2800,1800,2027-05-20,Pharmakina,30
+Ibuprofene 400mg,6291001100003,Antidouleur,150,2500,1500,2027-03-10,Shalina,30
+Aspirine 500mg,6291001100004,Antidouleur,200,1800,1100,2027-09-12,Shalina,40
+Diclofenac 50mg,6291001100005,Antidouleur,160,2500,1500,2027-04-10,Shalina,30
+Diclofenac gel 1%,6291001100006,Antidouleur,80,5500,3500,2027-02-18,Novartis,15
+Tramadol 50mg,6291001100007,Antidouleur,90,4500,2900,2027-06-25,Cipla,20
+Amoxicilline 500mg,6291001100008,Antibiotiques,120,4500,2800,2026-12-05,Cipla,25
+Amoxicilline 250mg sirop,6291001100009,Antibiotiques,80,6500,4200,2026-10-18,Cipla,20
+Ampicilline 500mg,6291001100010,Antibiotiques,90,4200,2700,2026-11-22,Cipla,20
+Ciprofloxacine 500mg,6291001100011,Antibiotiques,100,5500,3500,2027-01-14,Cipla,20
+Metronidazole 500mg,6291001100012,Antibiotiques,150,3200,2000,2027-04-08,Shalina,30
+Azithromycine 500mg,6291001100013,Antibiotiques,75,8500,5500,2026-09-30,Cipla,15
+Doxycycline 100mg,6291001100014,Antibiotiques,110,3800,2400,2027-02-25,Cipla,25
+Cotrimoxazole 480mg,6291001100015,Antibiotiques,140,2800,1700,2027-06-15,Shalina,30
+Ceftriaxone 1g injectable,6291001100016,Antibiotiques,60,9500,6200,2026-11-28,Cipla,15
+Erythromycine 500mg,6291001100017,Antibiotiques,100,3500,2200,2027-03-22,Cipla,25
+Artemether Lumefantrine 80/480,6291001100018,Antipaludique,160,7500,4800,2026-11-10,Novartis,30
+Artesunate 100mg,6291001100019,Antipaludique,100,9500,6200,2026-10-22,Guilin,20
+Quinine 300mg,6291001100020,Antipaludique,80,5200,3300,2027-03-18,Pharmakina,20
+Sulfadoxine Pyrimethamine,6291001100021,Antipaludique,90,3500,2200,2027-05-05,Shalina,20
+Albendazole 400mg,6291001100022,Antiparasitaire,130,2200,1400,2027-08-20,Cipla,30
+Mebendazole 100mg,6291001100023,Antiparasitaire,150,1800,1100,2027-09-12,Cipla,30
+Praziquantel 600mg,6291001100024,Antiparasitaire,60,7800,5000,2026-12-28,Cipla,15
+Omeprazole 20mg,6291001100025,Gastro,180,3500,2200,2027-04-15,Shalina,35
+Ranitidine 150mg,6291001100026,Gastro,140,2500,1500,2027-02-10,Shalina,30
+Maalox suspension,6291001100027,Gastro,90,5500,3500,2026-11-30,Sanofi,20
+Esomeprazole 40mg,6291001100028,Gastro,120,4200,2700,2027-05-18,Cipla,25
+Loperamide 2mg,6291001100029,Gastro,150,1500,900,2027-07-08,Shalina,30
+Smecta sachets,6291001100030,Gastro,120,1200,750,2027-05-22,Ipsen,30
+ORS sachets,6291001100031,Rehydratation,300,500,300,2027-12-15,UNICEF,60
+Zinc 20mg comprime,6291001100032,Vitamines,200,800,500,2027-10-20,Pharmakina,40
+Vitamine C 500mg,6291001100033,Vitamines,250,1800,1100,2027-11-18,Pharmakina,50
+Vitamine B Complex,6291001100034,Vitamines,180,2200,1400,2027-08-25,Pharmakina,40
+Multivitamines adulte,6291001100035,Vitamines,160,3500,2200,2027-09-30,Shalina,30
+Fer Acide Folique,6291001100036,Vitamines,140,2800,1700,2027-06-12,Shalina,30
+Acide Folique 5mg,6291001100037,Vitamines,200,1500,900,2027-10-08,Pharmakina,40
+Calcium Vitamine D,6291001100038,Vitamines,130,4200,2700,2027-07-20,Shalina,25
+Cetirizine 10mg,6291001100039,Allergie,180,2200,1400,2027-08-15,Shalina,35
+Loratadine 10mg,6291001100040,Allergie,140,2800,1800,2027-07-10,Shalina,30
+Chlorpheniramine 4mg,6291001100041,Allergie,200,1500,900,2027-09-25,Cipla,40
+Dexamethasone 0.5mg,6291001100042,Allergie,100,3200,2000,2026-12-15,Cipla,20
+Prednisolone 5mg,6291001100043,Allergie,120,2800,1800,2027-01-22,Cipla,25
+Hydrocortisone creme 1%,6291001100044,Allergie,70,4500,2800,2027-03-08,Sanofi,15
+Salbutamol inhalateur,6291001100045,Respiratoire,60,8500,5500,2026-11-18,GSK,15
+Salbutamol sirop,6291001100046,Respiratoire,80,3500,2200,2027-02-28,GSK,20
+Sirop antitussif,6291001100047,Respiratoire,160,3500,2200,2027-06-20,Shalina,35
+Sirop expectorant,6291001100048,Respiratoire,140,3800,2400,2027-08-12,Shalina,30
+Pastilles pour la gorge,6291001100049,Respiratoire,200,1500,900,2027-10-30,Strepsils,40
+Amlodipine 5mg,6291001100050,Cardiovasculaire,150,3200,2000,2027-05-15,Cipla,30
+Amlodipine 10mg,6291001100051,Cardiovasculaire,130,4200,2700,2027-04-22,Cipla,25
+Captopril 25mg,6291001100052,Cardiovasculaire,140,2800,1800,2027-06-08,Cipla,30
+Lisinopril 10mg,6291001100053,Cardiovasculaire,110,4500,2900,2027-03-30,Cipla,25
+Losartan 50mg,6291001100054,Cardiovasculaire,120,4200,2700,2027-04-18,Cipla,25
+Hydrochlorothiazide 25mg,6291001100055,Cardiovasculaire,160,2200,1400,2027-07-12,Cipla,30
+Atenolol 50mg,6291001100056,Cardiovasculaire,120,3500,2200,2027-05-05,Cipla,25
+Furosemide 40mg,6291001100057,Cardiovasculaire,150,2200,1400,2027-09-08,Cipla,30
+Digoxine 0.25mg,6291001100058,Cardiovasculaire,60,4500,2900,2026-12-20,Sanofi,15
+Aspirine 100mg,6291001100059,Cardiovasculaire,200,1800,1100,2027-10-25,Shalina,40
+Atorvastatine 20mg,6291001100060,Cardiovasculaire,120,5500,3500,2027-04-12,Cipla,25
+Simvastatine 20mg,6291001100061,Cardiovasculaire,100,4800,3100,2027-03-22,Cipla,25
+Metformine 500mg,6291001100062,Diabete,180,3800,2400,2027-08-18,Cipla,35
+Glibenclamide 5mg,6291001100063,Diabete,140,2500,1500,2027-06-22,Cipla,30
+Gliclazide 80mg,6291001100064,Diabete,110,3500,2200,2027-05-12,Cipla,25
+Insuline NPH,6291001100065,Diabete,40,18500,12500,2026-10-15,NovoNordisk,10
+Bandelettes glycemie,6291001100066,Diabete,80,12500,8500,2027-08-30,Accu-Chek,20
+Glucometre,6291001100067,Diabete,12,22500,14500,2030-01-01,Accu-Chek,5
+Diazepam 5mg,6291001100068,Neurologie,80,3500,2200,2027-01-18,Sanofi,20
+Carbamazepine 200mg,6291001100069,Neurologie,90,4200,2700,2027-05-28,Sanofi,20
+Phenobarbital 100mg,6291001100070,Neurologie,70,3200,2000,2027-04-15,Sanofi,15
+Paracetamol sirop pediatrique,6291001100071,Pediatrie,150,3500,2200,2027-08-08,Shalina,30
+Amoxicilline sirop pediatrique,6291001100072,Pediatrie,100,6500,4200,2026-12-22,Cipla,25
+Vitamine A capsule,6291001100073,Pediatrie,250,500,300,2027-10-30,UNICEF,50
+Mebendazole sirop pediatrique,6291001100074,Pediatrie,120,2500,1500,2027-07-18,Cipla,25
+ORS pediatrique,6291001100075,Pediatrie,200,800,500,2027-11-15,UNICEF,40
+Eau oxygenee 10 vol,6291001100076,Antiseptique,180,1500,900,2028-01-15,Cooper,40
+Alcool 70% 250ml,6291001100077,Antiseptique,200,2200,1400,2028-03-20,Cooper,50
+Betadine solution 125ml,6291001100078,Antiseptique,140,4500,2900,2027-06-10,Meda,30
+Compresses steriles,6291001100079,Pansement,300,800,500,2029-01-10,Hartmann,60
+Bandes elastiques,6291001100080,Pansement,200,1200,750,2029-02-15,Hartmann,40
+Sparadrap rouleau,6291001100081,Pansement,250,1500,900,2029-03-20,Hartmann,50
+Coton hydrophile 100g,6291001100082,Pansement,180,1800,1100,2029-01-25,Cooper,40
+Seringues 5ml,6291001100083,Materiel,500,300,180,2029-06-15,BBraun,100
+Seringues 10ml,6291001100084,Materiel,400,400,250,2029-06-15,BBraun,80
+Gants latex paire,6291001100085,Materiel,600,250,150,2028-12-20,Ansell,120
+Thermometre digital,6291001100086,Materiel,40,8500,5500,2030-01-01,Omron,10
+Tensiometre,6291001100087,Materiel,15,28500,18500,2030-01-01,Omron,5
+Preservatifs boite 12,6291001100088,Contraception,200,1500,900,2028-05-15,Durex,40
+Pilule contraceptive,6291001100089,Contraception,140,3500,2200,2027-09-22,Bayer,30
+Test de grossesse,6291001100090,Diagnostic,120,2500,1500,2027-12-18,SD Biosensor,30
+Test paludisme RDT,6291001100091,Diagnostic,150,3500,2200,2027-10-12,SD Biosensor,30
+Test VIH RDT,6291001100092,Diagnostic,100,4500,2900,2027-08-25,SD Biosensor,25
+Pommade ophtalmique tetracycline,6291001100093,Ophtalmologie,90,3200,2000,2027-04-18,Cipla,20
+Collyre antibiotique,6291001100094,Ophtalmologie,80,4500,2900,2027-05-22,Cipla,20
+Pommade dentaire,6291001100095,Dentaire,100,2800,1800,2027-07-08,Pierre Fabre,25
+Bain de bouche 250ml,6291001100096,Dentaire,120,4200,2700,2027-09-15,Listerine,25

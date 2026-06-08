@@ -3,6 +3,14 @@ import { supabase } from "./supabaseClient";
 
 /* ═══════ CONSTANTS & HELPERS ═══════ */
 const FC_RATE = 2800;
+const REMISE_THRESHOLD_FC = 100000;
+const REMISE_RATE = 0.03;
+const remiseInfo = (subtotalStored) => {
+  const fc = subtotalStored * FC_RATE;
+  if (fc < REMISE_THRESHOLD_FC) return { rate: 0, discount: 0, final: subtotalStored, applies: false };
+  const discount = subtotalStored * REMISE_RATE;
+  return { rate: REMISE_RATE, discount, final: subtotalStored - discount, applies: true };
+};
 const LOGO = "/image_2026-05-12_204244494.png";
 const today = () => new Date().toISOString().split("T")[0];
 const fmtUSD = (n) => new Intl.NumberFormat("fr-CD", { style: "currency", currency: "USD" }).format(n);
@@ -378,6 +386,37 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .chart-lbl{font-size:7px;color:var(--t3);text-align:center;line-height:1;white-space:nowrap}
 .top5-row{display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--bd2);font-size:12px;gap:6px}
 .top5-row:last-child{border-bottom:none}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi-card{background:var(--card);border-radius:14px;border:1px solid var(--bd2);padding:16px 16px 14px;box-shadow:0 1px 2px rgba(15,76,42,.04);transition:transform .15s ease,box-shadow .15s ease;position:relative;overflow:hidden}
+.kpi-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,76,42,.08)}
+.kpi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.kpi-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--al);color:var(--ac)}
+.kpi-delta{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;letter-spacing:.3px}
+.kpi-delta.up{background:#E6F4ED;color:#0F4C2A}
+.kpi-delta.down{background:#FCEEEE;color:#B45454}
+.kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:600;margin-bottom:4px}
+.kpi-value{font-size:22px;font-weight:700;color:var(--t);letter-spacing:-.3px;line-height:1.1}
+.kpi-sub{font-size:10px;color:var(--t3);margin-top:6px;line-height:1.4}
+.an-row{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px}
+.chart-card,.top-card{background:var(--card);border:1px solid var(--bd2);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(15,76,42,.04)}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px}
+.card-h h3{font-size:14px;font-weight:600;color:var(--t);margin:0}
+.card-sub{font-size:10px;color:var(--t3);display:block;margin-top:2px;font-weight:400}
+.card-pill{font-size:9px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--al);color:var(--ac);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.chart-card .chart-inner{height:160px}
+.chart-card .chart-bar{background:linear-gradient(180deg,#1A7F48 0%,#0F4C2A 100%);border-radius:6px 6px 0 0}
+.chart-card .chart-lbl{font-size:9px;margin-top:4px}
+.top-list{display:flex;flex-direction:column;gap:6px}
+.top-item{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:9px;transition:background .12s}
+.top-item:hover{background:var(--al)}
+.top-rank{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.top-rank.r1{background:linear-gradient(135deg,#FFD37A,#F0A437);color:#5C3F00}
+.top-rank.r2{background:linear-gradient(135deg,#D8DEE5,#A8B3BF);color:#3B4856}
+.top-rank.r3{background:linear-gradient(135deg,#E0B58F,#B17D4F);color:#4A2D11}
+.top-rank.r4,.top-rank.r5{background:var(--al);color:var(--ac)}
+.top-name{font-size:12px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-meta{font-size:10px;color:var(--t3);margin-top:1px}
+.top-rev{font-size:11px;font-weight:700;color:#0F4C2A;white-space:nowrap}
 .inv-row{border-bottom:1px solid var(--bd2)}
 .inv-header{padding:6px 12px;background:#FAFCFB;display:flex;justify-content:space-between;align-items:center;font-size:11px}
 .inv-item{padding:4px 12px 4px 24px;display:flex;justify-content:space-between;font-size:11px;color:var(--t2)}
@@ -428,6 +467,7 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .sb-vitrine-btn{flex:1;padding:4px 0;border:none;border-radius:5px;font-size:9px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;transition:.15s}
 .sb-vitrine-btn.cp{background:rgba(255,255,255,.15);color:#fff}.sb-vitrine-btn.cp:hover{background:rgba(255,255,255,.25)}
 .sb-vitrine-btn.op{background:var(--sba);color:#fff}.sb-vitrine-btn.op:hover{background:var(--ac)}
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.an-row{grid-template-columns:1fr}}
 @media(max-width:900px){.stats,.an-grid{grid-template-columns:repeat(2,1fr)}.ag{grid-template-columns:1fr}.sb{width:52px;min-width:52px}.sb-brand h1,.sb-brand span,.sb-lbl,.sb-btn span{display:none}.sb-brand{justify-content:center;padding:10px 5px}.sb-brand-logo{width:30px;height:30px}.sb-btn{justify-content:center;padding:8px}.sb-btn .badge{display:none}.top{padding:8px 10px}.cnt{padding:10px}.srch{width:140px}.sb-vitrine{display:none}.sb-vitrine-full{display:none}}
 `;
 
@@ -569,9 +609,12 @@ function DashApp({session,onLogout}){
     const customerNotes=customerInfo?.notes||"";
     const ws=workspaceRef.current;const invNum=genInv();
     const wsId=ws?.id&&ws.id!==uid?ws.id:null;
+    const subtotal=cartItems.reduce((s,i)=>s+i.drug.price*i.qty,0);
+    const rem=remiseInfo(subtotal);
+    const factor=1-rem.rate;
     const salesData=cartItems.map(item=>({
       user_id:uid,workspace_id:wsId,drug_id:item.drug.id,drug_name:item.drug.name,
-      qty:item.qty,unit_price:item.drug.price,total:item.qty*item.drug.price,
+      qty:item.qty,unit_price:item.drug.price,total:item.qty*item.drug.price*factor,
       sale_date:today(),sale_time:new Date().toLocaleTimeString(),
       invoice_number:invNum,customer_name:customerName||null,
     }));
@@ -589,10 +632,36 @@ function DashApp({session,onLogout}){
       const merged={...prev,phone:customerPhone||prev.phone||"",address:customerAddress||prev.address||"",notes:customerNotes||prev.notes||""};
       saveClientExtra({...clientExtra,[key]:merged});
     }
-    const total=cartItems.reduce((s,i)=>s+i.drug.price*i.qty,0);
-    setInvoice({number:invNum,date:today(),customer:customerName,items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),total});
+    setInvoice({
+      number:invNum,date:today(),customer:customerName,
+      items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),
+      subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:false,
+    });
     setCart([]);setShowCart(false);
-    t2(`Vente confirmée · ${fmt(total)}`);
+    t2(`Vente confirmée · ${fmt(rem.final)}`);
+  };
+
+  const hGenerateQuote=(cartItems,customerInfo)=>{
+    if(!cartItems.length)return;
+    const customerName=customerInfo?.name||"";
+    const subtotal=cartItems.reduce((s,i)=>s+i.drug.price*i.qty,0);
+    const rem=remiseInfo(subtotal);
+    const quoteNum=`DEVIS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    setInvoice({
+      number:quoteNum,date:today(),customer:customerName,
+      items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),
+      subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:true,
+    });
+    setShowCart(false);
+    t2("Devis généré (aucune vente enregistrée)");
+  };
+
+  const hClearAnalytics=async()=>{
+    if(!window.confirm("Réinitialiser toutes les analytiques de vente ? Cette action supprime l'historique des transactions et est irréversible."))return;
+    const ws=workspaceRef.current;
+    await supabase.from("sales").delete().eq("workspace_id",ws.id);
+    await supabase.from("sales").delete().eq("user_id",uid).is("workspace_id",null);
+    await rlS();t2("Analytiques réinitialisées","er");
   };
 
   const hCSV=async(text,pricesInFC=false)=>{
@@ -758,7 +827,7 @@ function DashApp({session,onLogout}){
       <div className="cnt">
         {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmt(tr)})</span></div></div></div></div><DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/></>}
         {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
-        {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt}/>}
+        {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt} fmtFC={fmtFC} onReset={allowed("data")?hClearAnalytics:null}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
         {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
         {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
@@ -770,7 +839,7 @@ function DashApp({session,onLogout}){
     {modal?.type==="edit"&&<DF title="Modifier" drug={modal.drug} onClose={()=>setModal(null)} onSave={hEdit}/>}
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
-    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
+    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
     {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
@@ -815,7 +884,7 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel}){
 }
 
 /* ═══════ CART MODAL ═══════ */
-function CartModal({cart,setCart,onConfirm,onClose,fmt,clientExtra={}}){
+function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
   const[customer,setCustomer]=useState("");
   const[phone,setPhone]=useState("");
   const[address,setAddress]=useState("");
@@ -853,7 +922,9 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt,clientExtra={}}){
     finally{setSubmitting(false);}
   };
   const subtotal=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
+  const rem=remiseInfo(subtotal);
   const totalQty=cart.reduce((s,i)=>s+i.qty,0);
+  const handleQuote=()=>{if(cart.length===0||!onQuote)return;onQuote(cart,{name:customer,phone,address,notes})};
   return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:'min(860px,94vw)',maxHeight:'92vh'}}>
     <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
       <div><h3 style={{fontSize:19,display:'flex',alignItems:'center',gap:8}}>{Ic.cart({size:17})} Panier d'achats</h3>
@@ -891,28 +962,49 @@ function CartModal({cart,setCart,onConfirm,onClose,fmt,clientExtra={}}){
           </div>
           <div className="cart-summary">
             {cart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
-            <div className="cart-total-row"><span>Total</span><span>{fmt(subtotal)}</span></div>
+            {rem.applies?<>
+              <div className="cart-sum-row" style={{fontWeight:600,paddingTop:8,borderTop:'1px dashed var(--bd2)'}}><span>Sous-total</span><span>{fmt(subtotal)}</span></div>
+              <div className="cart-sum-row" style={{color:'#0F4C2A',fontWeight:600}}><span>Remise (3%)</span><span>− {fmt(rem.discount)}</span></div>
+              <div className="cart-total-row"><span>Total à payer</span><span>{fmt(rem.final)}</span></div>
+            </>:<div className="cart-total-row"><span>Total</span><span>{fmt(subtotal)}</span></div>}
+            {!rem.applies&&subtotal>0&&<div style={{fontSize:10,color:'var(--t3)',marginTop:4,fontStyle:'italic'}}>Remise de 3% appliquée automatiquement à partir de 100 000 FC</div>}
           </div>
         </>
       }
     </div>
-    <div className="mo-f" style={{justifyContent:'space-between',alignItems:'center'}}>
+    <div className="mo-f" style={{justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
-      <button className="bt bt-ok" onClick={handleConfirm} disabled={cart.length===0||submitting} style={{padding:'10px 22px',fontSize:13,gap:7,opacity:submitting?.6:1}}>
-        {Ic.check({size:13})} {submitting?"Traitement…":`Confirmer la vente · ${fmt(subtotal)}`}
-      </button>
+      <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+        {onQuote&&<button className="bt bt-s" onClick={handleQuote} disabled={cart.length===0||submitting} title="Génère un devis sans enregistrer la vente">
+          {Ic.receipt({size:13})} Générer un devis
+        </button>}
+        <button className="bt bt-ok" onClick={handleConfirm} disabled={cart.length===0||submitting} style={{padding:'10px 22px',fontSize:13,gap:7,opacity:submitting?.6:1}}>
+          {Ic.check({size:13})} {submitting?"Traitement…":`Confirmer la vente · ${fmt(rem.final)}`}
+        </button>
+      </div>
     </div>
   </div></div>);
 }
 
 /* ═══════ INVOICE MODAL ═══════ */
 function InvoiceModal({invoice,onClose,fmt}){
+  const isQuote=!!invoice.quote;
+  const docLabel=isQuote?"Devis":"Facture";
+  const subtotal=invoice.subtotal??invoice.total;
+  const discount=invoice.discount||0;
+  const hasRemise=discount>0;
+  const finalTotal=invoice.total;
   const printInvoice=()=>{
     const win=window.open("","_blank");
     const fc=n=>fmtAmt(n,"FC");
     const rows=invoice.items.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fc(i.unit_price)}</td><td style="text-align:right">${fc(i.total)}</td></tr>`).join("");
+    const summaryRows=hasRemise?`
+      <tr class="sub-row"><td colspan="3" style="text-align:right">Sous-total</td><td style="text-align:right">${fc(subtotal)}</td></tr>
+      <tr class="rem-row"><td colspan="3" style="text-align:right">Remise (3%)</td><td style="text-align:right">− ${fc(discount)}</td></tr>
+      <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL À PAYER</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`
+      :`<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`;
     const logoUrl=window.location.origin+LOGO;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facture ${invoice.number}</title><style>
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${docLabel} ${invoice.number}</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;max-width:640px;margin:40px auto;color:#1A2E23;font-size:13px;padding:0 20px}
 .header{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:3px solid #0F4C2A;margin-bottom:22px}
@@ -928,20 +1020,27 @@ th{color:#fff;padding:10px 12px;text-align:left;font-size:11px;font-weight:600;l
 td{padding:10px 12px;border-bottom:1px solid #E8F0EC;font-size:12px}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:nth-child(even){background:#FAFCFB}
+.sub-row{background:#FAFCFB}
+.sub-row td{font-weight:600;font-size:12px;color:#5A8A6A;border-top:2px dashed #C8D8CE}
+.rem-row{background:#F4F7F5}
+.rem-row td{font-weight:600;font-size:12px;color:#0F4C2A}
 .total-row{background:#F4F7F5!important}
 .total-row td{font-weight:700;font-size:14px;border-top:2px solid #1A7F48;color:#0F4C2A}
+.doc-type{display:inline-block;padding:4px 12px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-top:6px}
+.doc-quote{background:#FFF4E5;color:#A06400;border:1px solid #FFB960}
+.doc-invoice{background:#E6F4ED;color:#0F4C2A;border:1px solid #5BB280}
 .footer{text-align:center;margin-top:32px;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;padding-top:16px;line-height:1.8}
 @media print{body{margin:10px}.footer{position:fixed;bottom:10px;width:100%}}
 </style></head><body>
-<div class="header"><img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/><div><div class="company-name">Speranza Della Pharma</div><div class="company-sub">Système de Gestion Pharmaceutique</div></div></div>
+<div class="header"><img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/><div><div class="company-name">Speranza Della Pharma</div><div class="company-sub">Système de Gestion Pharmaceutique</div><div class="doc-type ${isQuote?'doc-quote':'doc-invoice'}">${isQuote?'Devis — non payé':'Facture officielle'}</div></div></div>
 <div class="meta">
-  <div class="meta-block"><strong>Facture N°</strong><span>${invoice.number}</span></div>
+  <div class="meta-block"><strong>${docLabel} N°</strong><span>${invoice.number}</span></div>
   <div class="meta-block"><strong>Date</strong><span>${invoice.date}</span></div>
   <div class="meta-block" style="text-align:right"><strong>Client</strong><span>${invoice.customer||"Client de passage"}</span></div>
 </div>
 <table><thead><tr><th>Médicament</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
-<tbody>${rows}<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fc(invoice.total)}</td></tr></tbody></table>
-<div class="footer">Merci pour votre confiance &nbsp;·&nbsp; Speranza Della Pharma<br/>Ce document est une facture officielle</div>
+<tbody>${rows}${summaryRows}</tbody></table>
+<div class="footer">${isQuote?'Ce devis est valable 7 jours. Aucun engagement de vente.':'Merci pour votre confiance — Speranza Della Pharma'}<br/>${isQuote?'Présentez ce document pour validation et achat.':'Ce document est une facture officielle'}</div>
 </body></html>`);
     win.document.close();setTimeout(()=>win.print(),400);
   };
@@ -949,7 +1048,12 @@ tbody tr:nth-child(even){background:#FAFCFB}
     <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
       <div style={{display:'flex',alignItems:'center',gap:10}}>
         <img src={LOGO} alt="" style={{width:36,height:36,borderRadius:7,objectFit:'contain'}} onError={e=>e.target.style.display='none'}/>
-        <div><h3 style={{fontSize:17}}>Facture {invoice.number}</h3><div style={{fontSize:11,color:'var(--t3)',marginTop:1}}>{invoice.date}{invoice.customer&&` · ${invoice.customer}`}</div></div>
+        <div>
+          <h3 style={{fontSize:17,display:'flex',alignItems:'center',gap:8}}>{docLabel} {invoice.number}
+            {isQuote&&<span style={{fontSize:9,fontWeight:700,letterSpacing:.5,textTransform:'uppercase',padding:'3px 8px',borderRadius:999,background:'#FFF4E5',color:'#A06400',border:'1px solid #FFB960'}}>Non payé</span>}
+          </h3>
+          <div style={{fontSize:11,color:'var(--t3)',marginTop:1}}>{invoice.date}{invoice.customer&&` · ${invoice.customer}`}</div>
+        </div>
       </div>
       <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
     </div>
@@ -969,24 +1073,34 @@ tbody tr:nth-child(even){background:#FAFCFB}
               <td style={{padding:'9px 10px',textAlign:'right',color:'var(--t2)'}}>{fmt(item.unit_price)}</td>
               <td style={{padding:'9px 10px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(item.total)}</td>
             </tr>)}
+            {hasRemise&&<>
+              <tr style={{borderTop:'2px dashed var(--bd2)'}}>
+                <td colSpan={3} style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:12,color:'var(--t2)'}}>Sous-total</td>
+                <td style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:13,color:'var(--t2)'}}>{fmt(subtotal)}</td>
+              </tr>
+              <tr style={{background:'#F4F7F5'}}>
+                <td colSpan={3} style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:12,color:'#0F4C2A'}}>Remise (3%)</td>
+                <td style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:13,color:'#0F4C2A'}}>− {fmt(discount)}</td>
+              </tr>
+            </>}
             <tr style={{background:'var(--bg)',borderTop:'2px solid var(--ac)'}}>
-              <td colSpan={3} style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:13}}>TOTAL</td>
-              <td style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:16,color:'var(--ac)'}}>{fmt(invoice.total)}</td>
+              <td colSpan={3} style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:13}}>{hasRemise?'TOTAL À PAYER':'TOTAL'}</td>
+              <td style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:16,color:'var(--ac)'}}>{fmt(finalTotal)}</td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div style={{fontSize:10,color:'var(--t3)',marginTop:10,textAlign:'center'}}>Facture en Francs Congolais (FC)</div>
+      <div style={{fontSize:10,color:'var(--t3)',marginTop:10,textAlign:'center'}}>{isQuote?'Devis en Francs Congolais (FC) — aucune vente enregistrée':'Facture en Francs Congolais (FC)'}</div>
     </div>
     <div className="mo-f" style={{justifyContent:'space-between'}}>
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
-      <button className="bt bt-p" onClick={printInvoice} style={{gap:7}}>{Ic.print({size:13})} Imprimer la facture</button>
+      <button className="bt bt-p" onClick={printInvoice} style={{gap:7}}>{Ic.print({size:13})} {isQuote?'Imprimer le devis':'Imprimer la facture'}</button>
     </div>
   </div></div>);
 }
 
 /* ═══════ ANALYTICS PAGE ═══════ */
-function AnalyticsPage({sales,fmt}){
+function AnalyticsPage({sales,fmt,fmtFC,onReset}){
   const[period,setPeriod]=useState("7d");
   const getStart=p=>{const n=new Date();const d={today:0,"7d":7,"14d":14,"30d":30,"3m":90}[p]||7;if(p==="today")return today();return new Date(n-d*864e5).toISOString().split("T")[0]};
   const start=getStart(period);
@@ -996,6 +1110,21 @@ function AnalyticsPage({sales,fmt}){
   const invKeys=[...new Set(filtered.map(s=>s.invoice_number||s.id))];
   const avgBasket=invKeys.length>0?revenue/invKeys.length:0;
 
+  // Previous period comparison
+  const periodDays={today:1,"7d":7,"14d":14,"30d":30,"3m":90}[period]||7;
+  const prevStart=new Date(new Date(start)-periodDays*864e5).toISOString().split("T")[0];
+  const prev=sales.filter(s=>{const d=s.sale_date||"";return d>=prevStart&&d<start});
+  const prevRev=prev.reduce((s,sl)=>s+Number(sl.total),0);
+  const prevItems=prev.reduce((s,sl)=>s+Number(sl.qty),0);
+  const prevInvKeys=[...new Set(prev.map(s=>s.invoice_number||s.id))];
+  const prevAvg=prevInvKeys.length>0?prevRev/prevInvKeys.length:0;
+  const delta=(now,was)=>was<=0?(now>0?100:0):((now-was)/was)*100;
+
+  // Aggregate per-invoice subtotals to compute total remise
+  const invMap={};filtered.forEach(s=>{const k=s.invoice_number||s.id;if(!invMap[k])invMap[k]={subtotal:0,total:0};invMap[k].subtotal+=Number(s.qty)*Number(s.unit_price);invMap[k].total+=Number(s.total)});
+  const totalRemise=Object.values(invMap).reduce((acc,v)=>acc+Math.max(0,v.subtotal-v.total),0);
+  const invoicesWithRemise=Object.values(invMap).filter(v=>v.subtotal-v.total>0.001).length;
+
   const dayMap={};filtered.forEach(s=>{const d=s.sale_date||today();dayMap[d]=(dayMap[d]||0)+Number(s.total)});
   const chartDays=Object.keys(dayMap).sort().slice(-14);
   const chartData=chartDays.map(d=>({label:new Date(d+"T00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}),value:dayMap[d]}));
@@ -1003,37 +1132,73 @@ function AnalyticsPage({sales,fmt}){
   const drugMap={};filtered.forEach(s=>{if(!drugMap[s.drug_name])drugMap[s.drug_name]={qty:0,revenue:0};drugMap[s.drug_name].qty+=Number(s.qty);drugMap[s.drug_name].revenue+=Number(s.total)});
   const top5=Object.entries(drugMap).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
 
-  const grouped={};filtered.forEach(s=>{const k=s.invoice_number||s.id;if(!grouped[k])grouped[k]={date:s.sale_date,time:s.sale_time,customer:s.customer_name,items:[],total:0};grouped[k].items.push(s);grouped[k].total+=Number(s.total)});
-  const sortedInv=Object.entries(grouped).sort((a,b)=>(b[1].date||"").localeCompare(a[1].date||""));
+  const grouped={};filtered.forEach(s=>{const k=s.invoice_number||s.id;if(!grouped[k])grouped[k]={date:s.sale_date,time:s.sale_time,customer:s.customer_name,items:[],subtotal:0,total:0};grouped[k].items.push(s);grouped[k].subtotal+=Number(s.qty)*Number(s.unit_price);grouped[k].total+=Number(s.total)});
+  const sortedInv=Object.entries(grouped).sort((a,b)=>{const c=(b[1].date||"").localeCompare(a[1].date||"");return c!==0?c:(b[1].time||"").localeCompare(a[1].time||"")});
 
   const ps=[{k:"today",l:"Aujourd'hui"},{k:"7d",l:"7 jours"},{k:"14d",l:"14 jours"},{k:"30d",l:"30 jours"},{k:"3m",l:"3 mois"}];
+
+  const Kpi=({icon,label,value,delta,sub,accent})=>{
+    const up=delta>=0;const showDelta=delta!==undefined&&!isNaN(delta)&&isFinite(delta);
+    return(<div className="kpi-card">
+      <div className="kpi-top">
+        <div className="kpi-icon" style={accent?{background:accent.bg,color:accent.fg}:undefined}>{icon}</div>
+        {showDelta&&<div className={`kpi-delta ${up?"up":"down"}`}>{up?"▲":"▼"} {Math.abs(delta).toFixed(1)}%</div>}
+      </div>
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      {sub&&<div className="kpi-sub">{sub}</div>}
+    </div>);
+  };
+
   return(<div>
-    <div className="period-tabs">{ps.map(p=><button key={p.k} className={`bt ${period===p.k?"bt-p":"bt-s"}`} onClick={()=>setPeriod(p.k)}>{p.l}</button>)}</div>
-    <div className="an-grid">
-      <div className="stc"><div className="sti g">{Ic.receipt({size:15})}</div><div className="stv"><div className="l">Chiffre d'affaires</div><div className="v" style={{fontSize:16}}>{fmt(revenue)}</div></div></div>
-      <div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Articles vendus</div><div className="v">{itemsSold}</div></div></div>
-      <div className="stc"><div className="sti am">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Panier moyen</div><div className="v" style={{fontSize:16}}>{fmt(avgBasket)}</div></div></div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+      <div className="period-tabs" style={{marginBottom:0}}>{ps.map(p=><button key={p.k} className={`bt ${period===p.k?"bt-p":"bt-s"}`} onClick={()=>setPeriod(p.k)}>{p.l}</button>)}</div>
+      {onReset&&<button className="bt bt-s" onClick={onReset} style={{color:'#B45454',borderColor:'#F0D6D6',gap:6}} title="Supprimer tout l'historique des ventes">
+        {Ic.trash({size:12})} Réinitialiser
+      </button>}
     </div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-      <div className="chart-wrap"><div style={{fontWeight:600,fontSize:13,marginBottom:10,color:'var(--t)'}}>Revenus quotidiens</div><BarChart data={chartData} fmt={fmt}/></div>
-      <div className="tc"><div className="th2"><h3>Top 5 médicaments</h3></div>
-        {top5.length===0?<div className="emp"><p>Aucune vente sur cette période</p></div>:top5.map(([name,data],i)=><div key={name} className="top5-row">
-          <span style={{width:18,fontWeight:700,color:'var(--ac)',fontSize:11}}>{i+1}.</span>
-          <span style={{flex:1,fontWeight:500}}>{name}</span>
-          <span style={{color:'var(--t3)',marginRight:8,fontSize:11}}>{data.qty} u.</span>
-          <span style={{fontWeight:600,color:'var(--ok)',fontSize:11}}>{fmt(data.revenue)}</span>
-        </div>)}
+    <div className="kpi-grid">
+      <Kpi icon={Ic.receipt({size:16})} label="Chiffre d'affaires net" value={fmt(revenue)} delta={delta(revenue,prevRev)} sub={`vs ${fmt(prevRev)} période précédente`} accent={{bg:'linear-gradient(135deg,#0F4C2A,#1A7F48)',fg:'#fff'}}/>
+      <Kpi icon={Ic.box({size:16})} label="Articles vendus" value={itemsSold.toLocaleString("fr-FR")} delta={delta(itemsSold,prevItems)} sub={`${invKeys.length} facture${invKeys.length!==1?"s":""}`} accent={{bg:'#E6F4ED',fg:'#0F4C2A'}}/>
+      <Kpi icon={Ic.cart({size:16})} label="Panier moyen" value={fmt(avgBasket)} delta={delta(avgBasket,prevAvg)} sub={`vs ${fmt(prevAvg)} précédent`} accent={{bg:'#FFF7E6',fg:'#A06400'}}/>
+      <Kpi icon={Ic.receipt({size:16})} label="Remise accordée" value={fmt(totalRemise)} sub={invoicesWithRemise>0?`sur ${invoicesWithRemise} facture${invoicesWithRemise!==1?"s":""} (≥ 100 000 FC)`:"Aucune remise sur la période"} accent={{bg:'#FCEEEE',fg:'#B45454'}}/>
+    </div>
+
+    <div className="an-row">
+      <div className="chart-card">
+        <div className="card-h">
+          <div><h3>Revenus quotidiens</h3><span className="card-sub">Évolution sur les 14 derniers jours actifs</span></div>
+          <div className="card-pill">Net après remises</div>
+        </div>
+        <BarChart data={chartData} fmt={fmt}/>
+      </div>
+      <div className="top-card">
+        <div className="card-h"><div><h3>Top 5 médicaments</h3><span className="card-sub">Classement par quantité vendue</span></div></div>
+        {top5.length===0?<div className="emp" style={{padding:'30px 0'}}><p>Aucune vente sur cette période</p></div>:
+          <div className="top-list">{top5.map(([name,data],i)=><div key={name} className="top-item">
+            <div className={`top-rank r${i+1}`}>{i+1}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div className="top-name">{name}</div>
+              <div className="top-meta">{data.qty} unité{data.qty!==1?"s":""}</div>
+            </div>
+            <div className="top-rev">{fmt(data.revenue)}</div>
+          </div>)}</div>
+        }
       </div>
     </div>
-    <div className="tc"><div className="th2"><h3>Transactions</h3><span style={{fontSize:10,color:'var(--t3)'}}>{sortedInv.length} facture{sortedInv.length!==1?"s":""}</span></div>
+
+    <div className="tc"><div className="th2"><h3>Transactions récentes</h3><span style={{fontSize:10,color:'var(--t3)'}}>{sortedInv.length} facture{sortedInv.length!==1?"s":""}</span></div>
       {sortedInv.length===0?<div className="emp">{Ic.receipt({size:28,color:'var(--t3)'})}<p>Aucune vente sur cette période</p></div>:
-      sortedInv.map(([inv,g])=><div key={inv} className="inv-row">
-        <div className="inv-header">
-          <div><span style={{fontWeight:600,color:'var(--ac)',fontFamily:'monospace'}}>{inv}</span>{g.customer&&<span style={{marginLeft:8,color:'var(--t3)'}}>· {g.customer}</span>}</div>
-          <div style={{display:'flex',gap:12,alignItems:'center'}}><span style={{color:'var(--t3)'}}>{g.date}{g.time?` · ${g.time}`:""}</span><span style={{fontWeight:700,color:'var(--ok)'}}>{fmt(g.total)}</span></div>
-        </div>
-        {g.items.map((s,i)=><div key={i} className="inv-item"><span>{s.drug_name} <span style={{color:'var(--t3)'}}>×{s.qty}</span></span><span>{fmt(s.total)}</span></div>)}
-      </div>)}
+      sortedInv.map(([inv,g])=>{
+        const remise=Math.max(0,g.subtotal-g.total);
+        return(<div key={inv} className="inv-row">
+          <div className="inv-header">
+            <div><span style={{fontWeight:600,color:'var(--ac)',fontFamily:'monospace'}}>{inv}</span>{g.customer&&<span style={{marginLeft:8,color:'var(--t3)'}}>· {g.customer}</span>}{remise>0.001&&<span style={{marginLeft:8,fontSize:9,padding:'2px 7px',borderRadius:999,background:'#E6F4ED',color:'#0F4C2A',fontWeight:600}}>Remise {fmt(remise)}</span>}</div>
+            <div style={{display:'flex',gap:12,alignItems:'center'}}><span style={{color:'var(--t3)'}}>{g.date}{g.time?` · ${g.time}`:""}</span><span style={{fontWeight:700,color:'var(--ok)'}}>{fmt(g.total)}</span></div>
+          </div>
+          {g.items.map((s,i)=><div key={i} className="inv-item"><span>{s.drug_name} <span style={{color:'var(--t3)'}}>×{s.qty}</span></span><span>{fmt(s.total)}</span></div>)}
+        </div>);
+      })}
     </div>
   </div>);
 }
@@ -1044,9 +1209,22 @@ function AC({t,tp,items,em,render}){return(<div className="alc"><div className={
 
 /* ═══════ DRUG FORM MODAL ═══════ */
 function DF({title,drug,onClose,onSave}){
-  const[f,setF]=useState({name:drug?.name||"",barcode:drug?.barcode||"",category:drug?.category||"",stock:drug?.stock??0,price:drug?.price??0,cost_price:drug?.cost_price??0,expiry_date:drug?.expiry_date||"",supplier:drug?.supplier||"",min_stock:drug?.min_stock??20});
+  const[f,setF]=useState({
+    name:drug?.name||"",barcode:drug?.barcode||"",category:drug?.category||"",
+    stock:drug?.stock??0,
+    price_fc:drug?Math.round((drug.price||0)*FC_RATE):0,
+    cost_fc:drug?Math.round((drug.cost_price||0)*FC_RATE):0,
+    expiry_date:drug?.expiry_date||"",supplier:drug?.supplier||"",min_stock:drug?.min_stock??20,
+  });
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
-  const sv=()=>{if(!f.name.trim())return;onSave({...drug,...f,stock:parseInt(f.stock)||0,price:parseFloat(f.price)||0,cost_price:parseFloat(f.cost_price)||0,min_stock:parseInt(f.min_stock)||20})};
+  const sv=()=>{if(!f.name.trim())return;onSave({
+    ...drug,name:f.name,barcode:f.barcode,category:f.category,
+    stock:parseInt(f.stock)||0,
+    price:(parseFloat(f.price_fc)||0)/FC_RATE,
+    cost_price:(parseFloat(f.cost_fc)||0)/FC_RATE,
+    expiry_date:f.expiry_date,supplier:f.supplier,
+    min_stock:parseInt(f.min_stock)||20,
+  })};
   return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}>
     <div className="mo-h"><h3>{title}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
     <div className="mo-b"><div className="fg">
@@ -1055,8 +1233,8 @@ function DF({title,drug,onClose,onSave}){
       <div className="fi"><label>Catégorie</label><input value={f.category} onChange={e=>s("category",e.target.value)}/></div>
       <div className="fi"><label>Stock</label><input type="number" min="0" value={f.stock} onChange={e=>s("stock",e.target.value)}/></div>
       <div className="fi"><label>Stock min</label><input type="number" min="0" value={f.min_stock} onChange={e=>s("min_stock",e.target.value)}/></div>
-      <div className="fi"><label>Prix (USD)</label><input type="number" min="0" step="0.01" value={f.price} onChange={e=>s("price",e.target.value)}/></div>
-      <div className="fi"><label>Coût (USD)</label><input type="number" min="0" step="0.01" value={f.cost_price} onChange={e=>s("cost_price",e.target.value)}/></div>
+      <div className="fi"><label>Prix de vente (FC)</label><input type="number" min="0" step="1" value={f.price_fc} onChange={e=>s("price_fc",e.target.value)} placeholder="Ex: 5000"/></div>
+      <div className="fi"><label>Coût d'achat (FC)</label><input type="number" min="0" step="1" value={f.cost_fc} onChange={e=>s("cost_fc",e.target.value)} placeholder="Ex: 3000"/></div>
       <div className="fi"><label>Expiration</label><input type="date" value={f.expiry_date} onChange={e=>s("expiry_date",e.target.value)}/></div>
       <div className="fi"><label>Fournisseur</label><input value={f.supplier} onChange={e=>s("supplier",e.target.value)}/></div>
     </div></div>
