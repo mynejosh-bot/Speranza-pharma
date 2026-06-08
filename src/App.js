@@ -406,6 +406,19 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .chart-card .chart-inner{height:160px}
 .chart-card .chart-bar{background:linear-gradient(180deg,#1A7F48 0%,#0F4C2A 100%);border-radius:6px 6px 0 0}
 .chart-card .chart-lbl{font-size:9px;margin-top:4px}
+.lc-wrap{position:relative;width:100%}
+.lc-svg{display:block;width:100%;height:240px;cursor:crosshair;touch-action:none;font-family:inherit}
+.lc-tip{position:absolute;top:-2px;transform:translateX(-50%);background:#fff;border:1px solid var(--bd2);border-radius:11px;padding:9px 13px 10px;box-shadow:0 8px 24px rgba(15,76,42,.14),0 2px 6px rgba(15,76,42,.06);pointer-events:none;min-width:118px;text-align:left;z-index:10;animation:lcFade .12s ease-out}
+.lc-tip-l{transform:translateX(0)}
+.lc-tip-r{transform:translateX(-100%)}
+.lc-tip-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:2px}
+.lc-tip-val{font-size:16px;font-weight:700;color:#0F4C2A;letter-spacing:-.2px;line-height:1.1}
+.lc-tip-date{font-size:10px;color:var(--t3);margin-top:3px;text-transform:capitalize}
+@keyframes lcFade{from{opacity:0;transform:translateX(-50%) translateY(2px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.lc-tip-l{animation:lcFadeL .12s ease-out}
+.lc-tip-r{animation:lcFadeR .12s ease-out}
+@keyframes lcFadeL{from{opacity:0;transform:translateX(0) translateY(2px)}to{opacity:1;transform:translateX(0) translateY(0)}}
+@keyframes lcFadeR{from{opacity:0;transform:translateX(-100%) translateY(2px)}to{opacity:1;transform:translateX(-100%) translateY(0)}}
 .top-list{display:flex;flex-direction:column;gap:6px}
 .top-item{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:9px;transition:background .12s}
 .top-item:hover{background:var(--al)}
@@ -520,6 +533,102 @@ function BarChart({data,fmt}){
   if(!data||!data.length)return<div className="emp" style={{height:90}}><p>Aucune donnée</p></div>;
   const max=Math.max(...data.map(d=>d.value),1);
   return(<div className="chart-inner">{data.map((d,i)=>{const pct=Math.max(0,Math.round((d.value/max)*88));return(<div key={i} className="chart-bar-wrap"><div className="chart-bar" style={{height:pct||2}} title={fmt?fmt(d.value):d.value}/><div className="chart-lbl">{d.label}</div></div>)})}</div>);
+}
+
+/* ═══════ LINE CHART (smooth area, interactive) ═══════ */
+function LineChart({data,fmt}){
+  const[hover,setHover]=useState(null);
+  const ref=useRef(null);
+  if(!data||!data.length)return<div className="emp" style={{height:220}}><p>Aucune donnée sur cette période</p></div>;
+  const W=720,H=240,PT=22,PB=34,PL=58,PR=18;
+  const iW=W-PL-PR,iH=H-PT-PB;
+  const rawMax=Math.max(...data.map(d=>d.value));
+  const niceMax=rawMax<=0?1:Math.pow(10,Math.floor(Math.log10(rawMax)))*Math.ceil(rawMax/Math.pow(10,Math.floor(Math.log10(rawMax))));
+  const max=niceMax;
+  const n=data.length;
+  const pts=data.map((d,i)=>({
+    x:PL+(n===1?iW/2:(i/(n-1))*iW),
+    y:PT+iH-(d.value/max)*iH,
+    ...d,
+  }));
+  const smoothPath=ps=>{
+    if(ps.length<2)return`M ${ps[0].x},${ps[0].y}`;
+    let d=`M ${ps[0].x},${ps[0].y}`;
+    for(let i=0;i<ps.length-1;i++){
+      const p0=ps[i-1]||ps[i],p1=ps[i],p2=ps[i+1],p3=ps[i+2]||p2;
+      const t=0.18;
+      const c1x=p1.x+(p2.x-p0.x)*t,c1y=p1.y+(p2.y-p0.y)*t;
+      const c2x=p2.x-(p3.x-p1.x)*t,c2y=p2.y-(p3.y-p1.y)*t;
+      d+=` C ${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+    }
+    return d;
+  };
+  const line=smoothPath(pts);
+  const baseY=PT+iH;
+  const area=pts.length>=2?`${line} L ${pts[n-1].x},${baseY} L ${pts[0].x},${baseY} Z`:"";
+  const handleMove=e=>{
+    const r=ref.current?.getBoundingClientRect();if(!r)return;
+    const xSvg=((e.clientX-r.left)/r.width)*W;
+    let best=pts[0],bd=Infinity;
+    for(const p of pts){const d=Math.abs(p.x-xSvg);if(d<bd){bd=d;best=p}}
+    setHover(best);
+  };
+  const handleTouch=e=>{const t=e.touches[0];if(t)handleMove(t)};
+  // Y-axis labels (compact)
+  const ticks=4;
+  const compact=v=>{
+    const s=(fmt?fmt(v):String(Math.round(v))).replace(/ /g," ");
+    const isUSD=s.includes("$");
+    const m=s.match(/-?[\d.,\s]+/);
+    if(!m)return s;
+    const num=parseFloat(m[0].replace(/\s/g,"").replace(",","."));
+    if(isNaN(num))return s;
+    const suf=isUSD?"":" FC";
+    const pre=isUSD?"$":"";
+    if(num>=1e6)return pre+(num/1e6).toFixed(num>=1e7?0:1).replace(".0","")+"M"+suf;
+    if(num>=1000)return pre+Math.round(num/1000)+"k"+suf;
+    return pre+Math.round(num)+suf;
+  };
+  const yTicks=Array.from({length:ticks+1},(_,i)=>{const v=(max/ticks)*i;return{v,y:PT+iH-(v/max)*iH}});
+  const xStep=Math.max(1,Math.ceil(n/7));
+  const hoverPct=hover?(hover.x/W)*100:0;
+  const tipSide=hoverPct>70?"r":hoverPct<30?"l":"c";
+  return(<div className="lc-wrap">
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="lc-svg"
+      onMouseMove={handleMove} onMouseLeave={()=>setHover(null)}
+      onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={()=>setHover(null)}>
+      <defs>
+        <linearGradient id="lcGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#1A7F48" stopOpacity="0.32"/>
+          <stop offset="55%" stopColor="#1A7F48" stopOpacity="0.10"/>
+          <stop offset="100%" stopColor="#1A7F48" stopOpacity="0"/>
+        </linearGradient>
+        <linearGradient id="lcLine" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#1A7F48"/>
+          <stop offset="100%" stopColor="#0F4C2A"/>
+        </linearGradient>
+      </defs>
+      {yTicks.map((t,i)=>(<g key={i}>
+        <line x1={PL} x2={W-PR} y1={t.y} y2={t.y} stroke="#E8F0EC" strokeDasharray="3 5" strokeWidth="1"/>
+        <text x={PL-10} y={t.y+3.5} fontSize="10" fill="#8AA69A" textAnchor="end" fontFamily="inherit">{compact(t.v)}</text>
+      </g>))}
+      <path d={area} fill="url(#lcGrad)"/>
+      <path d={line} fill="none" stroke="url(#lcLine)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+      {hover&&<>
+        <line x1={hover.x} x2={hover.x} y1={PT} y2={baseY} stroke="#0F4C2A" strokeWidth="1" strokeDasharray="3 4" strokeOpacity="0.45"/>
+        <circle cx={hover.x} cy={hover.y} r="7" fill="#0F4C2A" fillOpacity="0.12"/>
+        <circle cx={hover.x} cy={hover.y} r="4.5" fill="#fff" stroke="#0F4C2A" strokeWidth="2.4"/>
+      </>}
+      {pts.map((p,i)=>{if(i%xStep!==0&&i!==n-1)return null;return(
+        <text key={i} x={p.x} y={H-10} fontSize="10" fill="#8AA69A" textAnchor="middle" fontFamily="inherit">{p.label}</text>
+      )})}
+    </svg>
+    {hover&&<div className={`lc-tip lc-tip-${tipSide}`} style={{left:`${hoverPct}%`}}>
+      <div className="lc-tip-lbl">Revenu</div>
+      <div className="lc-tip-val">{fmt?fmt(hover.value):hover.value}</div>
+      <div className="lc-tip-date">{hover.fullDate||hover.label}</div>
+    </div>}
+  </div>);
 }
 
 /* ═══════ DASHBOARD ═══════ */
@@ -1126,8 +1235,20 @@ function AnalyticsPage({sales,fmt,fmtFC,onReset}){
   const invoicesWithRemise=Object.values(invMap).filter(v=>v.subtotal-v.total>0.001).length;
 
   const dayMap={};filtered.forEach(s=>{const d=s.sale_date||today();dayMap[d]=(dayMap[d]||0)+Number(s.total)});
-  const chartDays=Object.keys(dayMap).sort().slice(-14);
-  const chartData=chartDays.map(d=>({label:new Date(d+"T00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}),value:dayMap[d]}));
+  // Build a continuous daily series across the period (fills empty days with 0) so the line reads naturally
+  const periodStart=new Date(start),periodEnd=new Date();
+  const seriesDays=[];
+  for(let d=new Date(periodStart);d<=periodEnd;d=new Date(d.getTime()+864e5)){seriesDays.push(d.toISOString().split("T")[0])}
+  if(seriesDays.length<2&&Object.keys(dayMap).length)seriesDays.push(...Object.keys(dayMap));
+  const uniqDays=[...new Set(seriesDays)].sort().slice(-30);
+  const chartData=uniqDays.map(d=>{
+    const dt=new Date(d+"T00:00");
+    return{
+      label:dt.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}),
+      fullDate:dt.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}),
+      value:dayMap[d]||0,
+    };
+  });
 
   const drugMap={};filtered.forEach(s=>{if(!drugMap[s.drug_name])drugMap[s.drug_name]={qty:0,revenue:0};drugMap[s.drug_name].qty+=Number(s.qty);drugMap[s.drug_name].revenue+=Number(s.total)});
   const top5=Object.entries(drugMap).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
@@ -1167,10 +1288,10 @@ function AnalyticsPage({sales,fmt,fmtFC,onReset}){
     <div className="an-row">
       <div className="chart-card">
         <div className="card-h">
-          <div><h3>Revenus quotidiens</h3><span className="card-sub">Évolution sur les 14 derniers jours actifs</span></div>
+          <div><h3>Revenus quotidiens</h3><span className="card-sub">Survolez le graphique pour le détail journalier</span></div>
           <div className="card-pill">Net après remises</div>
         </div>
-        <BarChart data={chartData} fmt={fmt}/>
+        <LineChart data={chartData} fmt={fmt}/>
       </div>
       <div className="top-card">
         <div className="card-h"><div><h3>Top 5 médicaments</h3><span className="card-sub">Classement par quantité vendue</span></div></div>
