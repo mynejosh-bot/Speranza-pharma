@@ -680,13 +680,13 @@ function DashApp({session,onLogout}){
     }
     if(drugsRows&&drugsRows.length>0){
       // Real data from DB — use it
-      setDrugs(drugsRows);
+      setDrugs(drugsRows.map(normDrug));
     }else{
       // DB returned nothing (empty table, RLS block, or query error) — SAMPLE is already showing.
       // Try to seed into DB in the background; if it works, replace with persisted rows.
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id!==uid?ws.id:null}));
       supabase.from("drugs").insert(samples).select().then(({data:ins})=>{
-        if(ins&&ins.length>0)setDrugs(ins);
+        if(ins&&ins.length>0)setDrugs(ins.map(normDrug));
         // else: keep showing initial SAMPLE state — never blank
       });
     }
@@ -696,7 +696,8 @@ function DashApp({session,onLogout}){
   };ld()},[uid]);
 
   const t2=(m,t="ok")=>{setToast({m,t});setTimeout(()=>setToast(null),3000)};
-  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("drugs").select("*").or(f).order("name");setDrugs(data||[])};
+  const normDrug=d=>({...d,price:d.price_fc!=null?d.price_fc/FC_RATE:d.price,cost_price:d.cost_fc!=null?d.cost_fc/FC_RATE:d.cost_price});
+  const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("drugs").select("*").or(f).order("name");setDrugs((data||[]).map(normDrug))};
   const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("sales").select("*").or(f).order("created_at",{ascending:false});setSales(data||[])};
   const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
@@ -817,22 +818,39 @@ function DashApp({session,onLogout}){
         const c=parseLine(lines[i]);
         const name=unquote(c[ni]);
         if(!name)continue;
+        const priceFcRaw=pi>=0?parseNum(c[pi]):0;
+        const costFcRaw=coi>=0?parseNum(c[coi]):0;
+        const priceFc=pricesInFC?Math.round(priceFcRaw):Math.round(priceFcRaw*FC_RATE);
+        const costFc=pricesInFC?Math.round(costFcRaw):Math.round(costFcRaw*FC_RATE);
         imp.push({
           user_id:uid,workspace_id:wsId,name,
           barcode:bi>=0?unquote(c[bi]):"",
           category:ci>=0?unquote(c[ci])||"Général":"Général",
           stock:si>=0?parseInt(unquote(c[si]))||0:0,
-          price:pi>=0?convPrice(c[pi]):0,
-          cost_price:coi>=0?convPrice(c[coi]):0,
+          price:priceFc/FC_RATE,
+          cost_price:costFc/FC_RATE,
+          price_fc:priceFc,
+          cost_fc:costFc,
           expiry_date:ei>=0&&unquote(c[ei])?unquote(c[ei]):null,
           supplier:sui>=0?unquote(c[sui]):"",
           min_stock:mi>=0?parseInt(unquote(c[mi]))||20:20,
         });
       }
       if(!imp.length)throw new Error("Aucune ligne valide trouvée dans le fichier");
-      const{error}=await supabase.from("drugs").insert(imp);
-      if(error)throw error;
-      await rlD();t2(`${imp.length} médicament(s) importé(s) avec succès`);setModal(null);
+      // Upsert: rows matching an existing drug by barcode (or by name if no barcode) UPDATE instead of duplicating.
+      const{data:existing}=await supabase.from("drugs").select("id,name,barcode")
+        .or(wsId?`workspace_id.eq.${wsId},user_id.eq.${uid}`:`user_id.eq.${uid}`);
+      const byBarcode=new Map(),byName=new Map();
+      (existing||[]).forEach(d=>{if(d.barcode)byBarcode.set(d.barcode.trim(),d.id);if(d.name)byName.set(d.name.trim().toLowerCase(),d.id)});
+      const toInsert=[],toUpdate=[];
+      for(const row of imp){
+        const hit=(row.barcode&&byBarcode.get(row.barcode.trim()))||byName.get(row.name.trim().toLowerCase());
+        if(hit){const{user_id,workspace_id,...rest}=row;toUpdate.push({id:hit,...rest})}
+        else toInsert.push(row);
+      }
+      if(toInsert.length){const{error:eIns}=await supabase.from("drugs").insert(toInsert);if(eIns)throw eIns}
+      for(const u of toUpdate){const{id,...rest}=u;const{error:eUp}=await supabase.from("drugs").update(rest).eq("id",id);if(eUp)throw eUp}
+      await rlD();t2(`${toInsert.length} ajouté(s), ${toUpdate.length} mis à jour`);setModal(null);
     }catch(e){t2(e.message,"er")}
   };
   const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
@@ -1341,8 +1359,10 @@ function DF({title,drug,onClose,onSave}){
   const sv=()=>{if(!f.name.trim())return;onSave({
     ...drug,name:f.name,barcode:f.barcode,category:f.category,
     stock:parseInt(f.stock)||0,
-    price:(parseFloat(f.price_fc)||0)/FC_RATE,
-    cost_price:(parseFloat(f.cost_fc)||0)/FC_RATE,
+    price:(parseInt(f.price_fc)||0)/FC_RATE,
+    cost_price:(parseInt(f.cost_fc)||0)/FC_RATE,
+    price_fc:parseInt(f.price_fc)||0,
+    cost_fc:parseInt(f.cost_fc)||0,
     expiry_date:f.expiry_date,supplier:f.supplier,
     min_stock:parseInt(f.min_stock)||20,
   })};
