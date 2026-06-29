@@ -52,6 +52,8 @@ const Ic={
   logout:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
   help:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
   shield:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  eye:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  eyeOff:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a19.78 19.78 0 015.06-5.94M9.9 4.24A10.93 10.93 0 0112 4c7 0 11 8 11 8a19.7 19.7 0 01-3.16 4.19M14.12 14.12A3 3 0 119.88 9.88"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
   zap:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   bar:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   leaf:p=><svg width={p?.size||18} height={p?.size||18} viewBox="0 0 24 24" fill="none" stroke={p?.color||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75"/></svg>,
@@ -166,6 +168,10 @@ const LCSS=`
 .auth-fi label{font-size:10px;font-weight:600;color:#4A6B5A;text-transform:uppercase;letter-spacing:.5px}
 .auth-fi input{padding:10px 13px;border:1px solid #D4E4DB;border-radius:9px;font-size:13px;font-family:'Outfit',sans-serif;outline:none;transition:.2s;color:#1A2E23}
 .auth-fi input:focus{border-color:#1A7F48;box-shadow:0 0 0 3px rgba(30,140,78,0.1)}
+.auth-pass-wrap{position:relative;display:flex;align-items:center}
+.auth-pass-wrap input{flex:1;padding-right:42px;width:100%}
+.auth-pass-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#4A6B5A;cursor:pointer;padding:6px;display:flex;align-items:center;justify-content:center;border-radius:6px;transition:.15s}
+.auth-pass-eye:hover{background:#E8F1ED;color:#1A7F48}
 .auth-btn{width:100%;padding:12px;border:none;border-radius:9px;background:linear-gradient(135deg,#1A7F48,#0F4C2A);color:#fff;font-size:14px;font-weight:500;font-family:'Outfit',sans-serif;cursor:pointer;transition:.3s;margin-top:6px}
 .auth-btn:hover{box-shadow:0 6px 20px rgba(15,76,42,0.3);transform:translateY(-1px)}
 .auth-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
@@ -247,7 +253,7 @@ function LandingPage({onAuth}){
 function AuthModal({mode,setMode,onClose,onAuth}){
   const[email,setEmail]=useState("");const[pass,setPass]=useState("");const[name,setName]=useState("");
   const[loading,setLoading]=useState(false);const[error,setError]=useState("");const[success,setSuccess]=useState("");
-  const[forgot,setForgot]=useState(false);
+  const[forgot,setForgot]=useState(false);const[showPass,setShowPass]=useState(false);
   const handleSubmit=async()=>{
     setError("");setSuccess("");setLoading(true);
     try{
@@ -283,7 +289,7 @@ function AuthModal({mode,setMode,onClose,onAuth}){
       {success&&<div className="auth-ok">{success}</div>}
       {mode==="signup"&&!forgot&&<div className="auth-fi"><label>Nom complet</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Jean Mukendi"/></div>}
       <div className="auth-fi"><label>Adresse e-mail</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="votre@email.com"/></div>
-      {!forgot&&<div className="auth-fi"><label>Mot de passe</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Min. 6 caractères" onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/></div>}
+      {!forgot&&<div className="auth-fi"><label>Mot de passe</label><div className="auth-pass-wrap"><input type={showPass?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} placeholder="Min. 6 caractères" onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/><button type="button" className="auth-pass-eye" onClick={()=>setShowPass(s=>!s)} aria-label={showPass?"Masquer le mot de passe":"Afficher le mot de passe"} title={showPass?"Masquer":"Afficher"}>{showPass?Ic.eyeOff?.({size:16})||"🙈":Ic.eye?.({size:16})||"👁"}</button></div></div>}
       {mode==="login"&&!forgot&&<div className="auth-forgot"><button onClick={()=>{setForgot(true);setError("")}}>Mot de passe oublié ?</button></div>}
       <button className="auth-btn" onClick={handleSubmit} disabled={loading||!email||((!forgot)&&!pass)}>{loading?"Chargement...":forgot?"Envoyer le lien":mode==="login"?"Se connecter":"S'inscrire"}</button>
       {forgot?<div className="auth-sw"><button onClick={()=>{setForgot(false);setError("")}}>Retour à la connexion</button></div>:
@@ -863,12 +869,27 @@ function DashApp({session,onLogout}){
     await rlD();t2("Inventaire vidé","er");
   };
 
+  const sendInviteEmail=async(email)=>{
+    // Sends a magic-link email via Supabase Auth. The recipient clicks the link
+    // and lands on the app already authenticated; setupWorkspace then attaches
+    // them to any workspace_members row matching their email.
+    try{
+      const{error}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:window.location.origin}});
+      if(error)console.warn("invite email:",error.message);
+      return !error;
+    }catch(e){console.warn("invite email failed:",e);return false}
+  };
   const hInvite=async(email,permissions)=>{
     const ws=workspaceRef.current;if(!ws)return;
     if(members.find(m=>m.email.toLowerCase()===email.toLowerCase())){t2("Cet e-mail est déjà invité","er");return}
     const{error}=await supabase.from("workspace_members").insert({workspace_id:ws.id,email,role:"member",permissions:permissions||MEMBER_DEFAULT_PERMS()});
     if(error){t2("Erreur: "+error.message,"er");return}
-    await loadMembers();t2(`Invitation envoyée à ${email}`);
+    const sent=await sendInviteEmail(email);
+    await loadMembers();t2(sent?`Invitation envoyée par e-mail à ${email}`:`Invité — l'e-mail n'a pas pu être envoyé, partagez le lien manuellement`,sent?"ok":"er");
+  };
+  const hResendInvite=async(email)=>{
+    const sent=await sendInviteEmail(email);
+    if(sent)t2(`E-mail renvoyé à ${email}`);else t2("Échec de l'envoi","er");
   };
   const hRemoveMember=async(memberId)=>{
     if(!window.confirm("Retirer ce membre de l'espace de travail ?"))return;
@@ -944,7 +965,7 @@ function DashApp({session,onLogout}){
         <h2>{titles[page]}</h2>
         <div className="top-a">
           {(page==="dashboard"||page==="inventory")&&<div className="srch"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)}/></div>}
-          {(page==="dashboard"||page==="inventory")&&allowed("inventory")&&<button className="bt bt-p" onClick={()=>setModal({type:"add"})}>{Ic.plus({size:13})} Ajouter</button>}
+          {page==="inventory"&&allowed("inventory")&&<button className="bt bt-p" onClick={()=>setModal({type:"add"})}>{Ic.plus({size:13})} Ajouter</button>}
           <button className="bt bt-s curr-toggle" onClick={toggleCurrency} title={`Basculer vers ${currency==="USD"?"FC":"USD"}`}>{currency==="USD"?"$ USD":"FC"}</button>
           {allowed("cart")&&<button className="bt bt-s cart-top" onClick={()=>setShowCart(true)} title="Voir le panier">{Ic.cart({size:15})}{cartCount>0&&<span className="cart-badge">{cartCount}</span>}</button>}
           <button className="bt bt-g" onClick={()=>setShowTour(true)} title="Guide">{Ic.help({size:15})}</button>
@@ -952,14 +973,14 @@ function DashApp({session,onLogout}){
         </div>
       </header>
       <div className="cnt">
-        {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmt(tr)})</span></div></div></div></div><DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/></>}
+        {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmt(tr)})</span></div></div></div></div><DT drugs={flt} fmt={fmt} onAddToCart={addToCart} compact/></>}
         {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
         {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt} fmtFC={fmtFC} onReset={allowed("data")?hClearAnalytics:null}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
         {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
         {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
         {page==="commandes"&&<StorefrontOrdersPage orders={sfOrders} onUpdateStatus={hUpdateOrderStatus}/>}
-        {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember} onUpdatePerms={hUpdatePerms}/>}
+        {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember} onUpdatePerms={hUpdatePerms} onResend={hResendInvite}/>}
       </div>
     </main>
     {modal?.type==="add"&&<DF title="Ajouter un médicament" onClose={()=>setModal(null)} onSave={hAdd}/>}
@@ -974,7 +995,7 @@ function DashApp({session,onLogout}){
 }
 
 /* ═══════ DRUG TABLE ═══════ */
-function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel}){
+function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
   const[sk,setSk]=useState("name");const[sd,setSd]=useState(1);
   const sort=k=>{if(sk===k)setSd(-sd);else{setSk(k);setSd(1)}};
   const sorted=[...drugs].sort((a,b)=>{let va=a[sk],vb=b[sk];if(typeof va==="string"){va=(va||"").toLowerCase();vb=(vb||"").toLowerCase()}return va<vb?-sd:va>vb?sd:0});
@@ -1001,9 +1022,11 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel}){
         <td>{d.expiry_date?<span className={`eb ${es}`}>{es==="expired"?"EXPIRÉ":d.expiry_date}</span>:"—"}</td>
         <td><div className="ac-c">
           <button className="bt bt-g bt-sm" onClick={()=>onAddToCart(d)} disabled={d.stock===0} title="Ajouter au panier" style={{color:d.stock>0?'var(--ac)':undefined}}>{Ic.cart({size:12})}</button>
-          <button className="bt bt-g bt-sm" onClick={()=>onRes(d)} title="Réappro.">{Ic.plus({size:12})}</button>
-          <button className="bt bt-g bt-sm" onClick={()=>onEdit(d)} title="Modifier">{Ic.edit({size:12})}</button>
-          <button className="bt bt-g bt-sm" onClick={()=>onDel(d.id)} style={{color:'var(--d)'}} title="Supprimer">{Ic.trash({size:12})}</button>
+          {!compact&&<>
+            <button className="bt bt-g bt-sm" onClick={()=>onRes(d)} title="Réappro.">{Ic.plus({size:12})}</button>
+            <button className="bt bt-g bt-sm" onClick={()=>onEdit(d)} title="Modifier">{Ic.edit({size:12})}</button>
+            <button className="bt bt-g bt-sm" onClick={()=>onDel(d.id)} style={{color:'var(--d)'}} title="Supprimer">{Ic.trash({size:12})}</button>
+          </>}
         </div></td>
       </tr>);
     })}</tbody></table></div>}
@@ -1430,7 +1453,7 @@ function PermissionsGrid({perms,onChange,disabled}){
     </label>)}
   </div>);
 }
-function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpdatePerms}){
+function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpdatePerms,onResend}){
   const[email,setEmail]=useState("");const[busy,setBusy]=useState(false);
   const[invitePerms,setInvitePerms]=useState(MEMBER_DEFAULT_PERMS());
   const[editingId,setEditingId]=useState(null);const[editPerms,setEditPerms]=useState({});
@@ -1473,6 +1496,7 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpd
           </div>
           <span className={`team-role ${m.role}`}>{m.role==="owner"?"Propriétaire":"Membre"}</span>
           {isOwner&&m.role!=="owner"&&<>
+            {!m.accepted_at&&onResend&&<button className="bt bt-g bt-sm" onClick={()=>onResend(m.email)} title="Renvoyer l'e-mail d'invitation">{Ic.upload({size:11})}</button>}
             <button className="bt bt-g bt-sm" onClick={()=>editing?setEditingId(null):openEditPerms(m)} title="Modifier les permissions">{Ic.edit({size:11})}</button>
             <button className="bt bt-g bt-sm" onClick={()=>onRemoveMember(m.id)} style={{color:'var(--d)'}} title="Retirer">{Ic.x({size:11})}</button>
           </>}
@@ -1495,7 +1519,7 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpd
       <div className="th2"><h3>Inviter un collaborateur</h3></div>
       <div className="team-invite-box">
         <p style={{fontSize:12,color:'var(--t3)',lineHeight:1.6,marginBottom:12}}>
-          Entrez l'adresse e-mail du collaborateur. Cette personne doit créer un compte avec cette adresse exacte — elle rejoindra automatiquement votre espace de travail avec les permissions choisies ci-dessous.
+          Entrez l'adresse e-mail du collaborateur. Un e-mail avec un lien de connexion lui sera envoyé automatiquement — un seul clic sur ce lien le connecte et le rattache à votre espace de travail avec les permissions choisies ci-dessous. Vous pouvez inviter autant de collaborateurs que nécessaire.
         </p>
         <div style={{display:'flex',gap:8,marginBottom:14}}>
           <div style={{flex:1}}><input className="fi input" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleInvite()} placeholder="collaborateur@exemple.com" style={{width:'100%',padding:'7px 9px',border:'1px solid var(--bd)',borderRadius:'var(--rs)',fontSize:12,fontFamily:"'Outfit',sans-serif",color:'var(--t)',outline:'none'}}/></div>
