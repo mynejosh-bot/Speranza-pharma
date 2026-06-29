@@ -2022,16 +2022,22 @@ export default function App(){
   const[session,setSession]=useState(null);const[checking,setChecking]=useState(true);
   const isStorefront=window.location.pathname.startsWith("/store/");
   const sfWsId=isStorefront?window.location.pathname.split("/store/")[1]?.split("/")[0]:null;
+  // Detect a Supabase magic-link / invite redirect BEFORE Supabase strips the hash.
+  // Only sessions originating from such a link should be funnelled through the password-setup gate.
+  if(typeof window!=="undefined"&&window.location.hash&&/access_token|type=(magiclink|invite|recovery|signup)/.test(window.location.hash)){
+    try{sessionStorage.setItem("sp_invite_flow","1")}catch(_){}
+  }
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setChecking(false)});
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));
     return()=>subscription.unsubscribe();
   },[]);
   if(isStorefront&&sfWsId)return<StoreFront wsId={sfWsId}/>;
-  const logout=async()=>{await supabase.auth.signOut();setSession(null)};
+  const logout=async()=>{await supabase.auth.signOut();try{sessionStorage.removeItem("sp_invite_flow")}catch(_){}setSession(null)};
   if(checking)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#F4F7F5'}}><div className="spin" style={{width:32,height:32,border:'3px solid #D4E4DB',borderTopColor:'#1A7F48',borderRadius:'50%',animation:'sp 1s linear infinite'}}/><style>{"@keyframes sp{to{transform:rotate(360deg)}}"}</style></div>;
   if(!session)return<LandingPage onAuth={setSession}/>;
-  if(!session.user?.user_metadata?.password_set)return<SetPasswordGate session={session} onDone={s=>setSession(s)} onLogout={logout}/>;
+  const viaInvite=(()=>{try{return sessionStorage.getItem("sp_invite_flow")==="1"}catch(_){return false}})();
+  if(viaInvite&&!session.user?.user_metadata?.password_set)return<SetPasswordGate session={session} onDone={s=>{try{sessionStorage.removeItem("sp_invite_flow")}catch(_){};setSession(s)}} onLogout={logout}/>;
   return<DashApp session={session} onLogout={logout}/>;
 }
 
@@ -2051,7 +2057,7 @@ function SetPasswordGate({session,onDone,onLogout}){
     const{data:{session:s2}}=await supabase.auth.getSession();
     onDone(s2||{...session,user:data.user});
   };
-  return(<div className="auth-overlay" style={{position:'relative',background:'#F4F7F5'}}>
+  return(<><style>{LCSS}</style><div className="auth-overlay">
     <div className="auth-box" style={{maxWidth:440}}>
       <img src={LOGO} alt="Speranza" className="auth-logo" onError={e=>{e.target.style.display='none'}}/>
       <h3>Définir votre mot de passe</h3>
@@ -2062,5 +2068,5 @@ function SetPasswordGate({session,onDone,onLogout}){
       <button className="auth-btn" onClick={submit} disabled={busy||!p1||!p2}>{busy?"Enregistrement...":"Activer mon compte"}</button>
       <div className="auth-sw" style={{marginTop:14}}><button onClick={onLogout}>Annuler et se déconnecter</button></div>
     </div>
-  </div>);
+  </div></>);
 }
