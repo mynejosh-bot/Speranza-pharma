@@ -520,10 +520,15 @@ async function setupWorkspace(user){
   for(const inv of(pending||[])){
     await supabase.from("workspace_members").update({user_id:user.id,accepted_at:new Date().toISOString()}).eq("id",inv.id);
   }
-  // 2. Find existing workspace membership
-  const{data:memberships}=await supabase.from("workspace_members").select("workspace_id").eq("user_id",user.id).not("accepted_at","is",null).order("accepted_at",{ascending:true}).limit(1);
+  // 2. Find existing workspace memberships. Prefer an invited (role!='owner')
+  // membership over a self-owned one — this prevents an accidentally-created
+  // personal workspace from shadowing the workspace the user was actually
+  // invited into.
+  const{data:memberships}=await supabase.from("workspace_members").select("workspace_id,role,accepted_at").eq("user_id",user.id).not("accepted_at","is",null);
   if(memberships?.length){
-    const{data:ws}=await supabase.from("workspaces").select("*").eq("id",memberships[0].workspace_id).single();
+    const invited=memberships.find(m=>m.role!=="owner");
+    const chosen=invited||memberships.sort((a,b)=>new Date(b.accepted_at)-new Date(a.accepted_at))[0];
+    const{data:ws}=await supabase.from("workspaces").select("*").eq("id",chosen.workspace_id).single();
     if(ws)return ws;
   }
   // 3. Try to find any existing workspace this user owns (fallback before creating new)
