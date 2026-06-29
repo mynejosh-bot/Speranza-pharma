@@ -698,14 +698,23 @@ function DashApp({session,onLogout}){
     if(drugsRows&&drugsRows.length>0){
       // Real data from DB — use it
       setDrugs(drugsRows.map(normDrug));
-    }else{
-      // DB returned nothing (empty table, RLS block, or query error) — SAMPLE is already showing.
-      // Try to seed into DB in the background; if it works, replace with persisted rows.
+    }else if(ws.owner_id===uid){
+      // Empty workspace owned by this user — seed SAMPLE so the dashboard isn't blank.
+      // Crucially we do NOT seed when the user is just a member of someone else's
+      // workspace: an empty/lagged first-load query for a member would otherwise
+      // pollute the owner's workspace with sample drugs.
       const samples=SAMPLE.map(s=>({...s,user_id:uid,workspace_id:ws.id!==uid?ws.id:null}));
       supabase.from("drugs").insert(samples).select().then(({data:ins})=>{
         if(ins&&ins.length>0)setDrugs(ins.map(normDrug));
-        // else: keep showing initial SAMPLE state — never blank
       });
+    }else{
+      // Member of a workspace that returned 0 drugs — most likely a race between
+      // the just-accepted membership and the first drug query. Re-fetch once.
+      setDrugs([]);
+      setTimeout(async()=>{
+        const{data:d2}=await supabase.from("drugs").select("*").or(`workspace_id.eq.${ws.id},user_id.eq.${uid}`).order("name");
+        if(d2&&d2.length)setDrugs(d2.map(normDrug));
+      },800);
     }
     setLoading(false);
     const v=localStorage.getItem(`sp_v_${uid}`);
