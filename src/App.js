@@ -263,9 +263,14 @@ function AuthModal({mode,setMode,onClose,onAuth}){
         setSuccess("Un e-mail de réinitialisation a été envoyé à "+email);setForgot(false);
       }else if(mode==="login"){
         const{data,error:e}=await supabase.auth.signInWithPassword({email,password:pass});
-        if(e)throw e;onAuth(data.session);
+        if(e)throw e;
+        // Existing accounts predate the invite gate — they already have a password, so mark it once.
+        if(!data.user?.user_metadata?.password_set){
+          try{await supabase.auth.updateUser({data:{password_set:true}})}catch(_){}
+        }
+        onAuth(data.session);
       }else{
-        const{data,error:e}=await supabase.auth.signUp({email,password:pass,options:{data:{full_name:name}}});
+        const{data,error:e}=await supabase.auth.signUp({email,password:pass,options:{data:{full_name:name,password_set:true}}});
         if(e)throw e;
         if(data.user&&!data.session){setSuccess("Vérifiez votre e-mail pour confirmer votre compte.");setMode("login")}
         else if(data.session)onAuth(data.session);
@@ -1519,7 +1524,7 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpd
       <div className="th2"><h3>Inviter un collaborateur</h3></div>
       <div className="team-invite-box">
         <p style={{fontSize:12,color:'var(--t3)',lineHeight:1.6,marginBottom:12}}>
-          Entrez l'adresse e-mail du collaborateur. Un e-mail avec un lien de connexion lui sera envoyé automatiquement — un seul clic sur ce lien le connecte et le rattache à votre espace de travail avec les permissions choisies ci-dessous. Vous pouvez inviter autant de collaborateurs que nécessaire.
+          Entrez l'adresse e-mail du collaborateur. Il recevra un e-mail avec un lien d'activation. En cliquant dessus, il sera invité à choisir son propre mot de passe personnel — qu'il utilisera ensuite à chaque connexion. Une fois activé, il rejoindra automatiquement votre espace de travail avec les permissions choisies ci-dessous. Vous pouvez inviter autant de collaborateurs que nécessaire.
         </p>
         <div style={{display:'flex',gap:8,marginBottom:14}}>
           <div style={{flex:1}}><input className="fi input" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleInvite()} placeholder="collaborateur@exemple.com" style={{width:'100%',padding:'7px 9px',border:'1px solid var(--bd)',borderRadius:'var(--rs)',fontSize:12,fontFamily:"'Outfit',sans-serif",color:'var(--t)',outline:'none'}}/></div>
@@ -2026,5 +2031,36 @@ export default function App(){
   const logout=async()=>{await supabase.auth.signOut();setSession(null)};
   if(checking)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#F4F7F5'}}><div className="spin" style={{width:32,height:32,border:'3px solid #D4E4DB',borderTopColor:'#1A7F48',borderRadius:'50%',animation:'sp 1s linear infinite'}}/><style>{"@keyframes sp{to{transform:rotate(360deg)}}"}</style></div>;
   if(!session)return<LandingPage onAuth={setSession}/>;
+  if(!session.user?.user_metadata?.password_set)return<SetPasswordGate session={session} onDone={s=>setSession(s)} onLogout={logout}/>;
   return<DashApp session={session} onLogout={logout}/>;
+}
+
+/* ═══════ SET PASSWORD GATE (first sign-in via invite link) ═══════ */
+function SetPasswordGate({session,onDone,onLogout}){
+  const[p1,setP1]=useState("");const[p2,setP2]=useState("");
+  const[show,setShow]=useState(false);const[busy,setBusy]=useState(false);const[err,setErr]=useState("");
+  const submit=async()=>{
+    setErr("");
+    if(p1.length<8){setErr("Le mot de passe doit contenir au moins 8 caractères.");return}
+    if(p1!==p2){setErr("Les deux mots de passe ne correspondent pas.");return}
+    setBusy(true);
+    const{data,error}=await supabase.auth.updateUser({password:p1,data:{password_set:true}});
+    setBusy(false);
+    if(error){setErr(error.message);return}
+    // refresh session so the new user_metadata is reflected
+    const{data:{session:s2}}=await supabase.auth.getSession();
+    onDone(s2||{...session,user:data.user});
+  };
+  return(<div className="auth-overlay" style={{position:'relative',background:'#F4F7F5'}}>
+    <div className="auth-box" style={{maxWidth:440}}>
+      <img src={LOGO} alt="Speranza" className="auth-logo" onError={e=>{e.target.style.display='none'}}/>
+      <h3>Définir votre mot de passe</h3>
+      <p className="sub">Bienvenue {session.user.email}. Pour sécuriser votre accès à l'espace de travail de la pharmacie, créez un mot de passe personnel. Vous l'utiliserez à chaque connexion.</p>
+      {err&&<div className="auth-err">{err}</div>}
+      <div className="auth-fi"><label>Nouveau mot de passe</label><div className="auth-pass-wrap"><input type={show?"text":"password"} value={p1} onChange={e=>setP1(e.target.value)} placeholder="Min. 8 caractères" autoFocus/><button type="button" className="auth-pass-eye" onClick={()=>setShow(s=>!s)} title={show?"Masquer":"Afficher"}>{show?Ic.eyeOff({size:16}):Ic.eye({size:16})}</button></div></div>
+      <div className="auth-fi"><label>Confirmer le mot de passe</label><div className="auth-pass-wrap"><input type={show?"text":"password"} value={p2} onChange={e=>setP2(e.target.value)} placeholder="Retapez le mot de passe" onKeyDown={e=>e.key==="Enter"&&submit()}/></div></div>
+      <button className="auth-btn" onClick={submit} disabled={busy||!p1||!p2}>{busy?"Enregistrement...":"Activer mon compte"}</button>
+      <div className="auth-sw" style={{marginTop:14}}><button onClick={onLogout}>Annuler et se déconnecter</button></div>
+    </div>
+  </div>);
 }
