@@ -2080,20 +2080,40 @@ function InviteSignupPage({token,onAuth}){
     if(p1.length<8){setErr("Le mot de passe doit contenir au moins 8 caractères.");return}
     if(p1!==p2){setErr("Les deux mots de passe ne correspondent pas.");return}
     setBusy(true);
+    // Call the accept-invite Edge Function. It uses the admin API so no
+    // outbound email is sent — sidesteps the SMTP rate limit entirely.
+    let acceptOk=false,acceptDetail="";
+    try{
+      const{data,error}=await supabase.functions.invoke("accept-invite",{
+        body:{invite_token:token,password:p1,full_name:name||info.email},
+      });
+      if(error){acceptDetail=error.message||"";}
+      else if(data?.ok){acceptOk=true;}
+      else if(data?.error){acceptDetail=data.error+(data.detail?": "+data.detail:"");}
+    }catch(e){acceptDetail=e?.message||String(e);}
+    if(acceptOk){
+      const{data:d2,error:e2}=await supabase.auth.signInWithPassword({email:info.email,password:p1});
+      setBusy(false);
+      if(e2){setErr("Compte créé, mais la connexion automatique a échoué : "+e2.message);return}
+      onAuth(d2.session);
+      return;
+    }
+    // Fallback path (Edge Function not deployed yet): plain signUp.
     const{data,error}=await supabase.auth.signUp({email:info.email,password:p1,options:{data:{full_name:name||info.email,password_set:true}}});
     setBusy(false);
     if(error){
       const m=error.message||"";
       if(m.toLowerCase().includes("already")){
         setErr("Un compte existe déjà pour cette adresse. Connectez-vous avec votre mot de passe habituel sur la page d'accueil.");
-      }else setErr(m);
+      }else if(m.toLowerCase().includes("rate limit")){
+        setErr("Limite d'envoi d'e-mails Supabase atteinte. L'administrateur doit déployer la fonction « accept-invite » (voir supabase/functions/accept-invite/README.md) ou désactiver « Confirm email » dans les paramètres Auth.");
+      }else setErr(m+(acceptDetail?` (accept-invite: ${acceptDetail})`:""));
       return;
     }
     if(data.session){onAuth(data.session);return}
-    // No session returned — email confirmation is still ON. Try to sign in directly:
     const{data:d2,error:e2}=await supabase.auth.signInWithPassword({email:info.email,password:p1});
     if(e2){
-      setErr("Compte créé, mais la connexion automatique a échoué. L'administrateur doit désactiver « Confirm email » dans Supabase. Vous pouvez aussi vérifier votre boîte de réception pour confirmer votre adresse, puis vous connecter manuellement.");
+      setErr("Compte créé, mais la connexion automatique a échoué. Demandez à l'administrateur de déployer la fonction « accept-invite » ou de désactiver « Confirm email » dans Supabase.");
       return;
     }
     onAuth(d2.session);
