@@ -277,7 +277,8 @@ function AuthModal({mode,setMode,onClose,onAuth}){
       }
     }catch(e){
       const m=e.message||"Erreur inconnue";
-      if(m.includes("Invalid login"))setError("E-mail ou mot de passe incorrect.");
+      if(m.includes("Invalid login"))setError("E-mail ou mot de passe incorrect. Si vous venez de créer votre compte via un lien d'invitation, demandez à l'administrateur de désactiver « Confirm email » dans les paramètres Supabase.");
+      else if(m.toLowerCase().includes("email not confirmed"))setError("Votre e-mail n'a pas encore été confirmé. Vérifiez votre boîte de réception, ou demandez à l'administrateur de désactiver « Confirm email » dans Supabase.");
       else if(m.includes("already registered"))setError("Cet e-mail est déjà enregistré.");
       else if(m.includes("Password"))setError("Le mot de passe doit contenir au moins 6 caractères.");
       else setError(m);
@@ -874,27 +875,18 @@ function DashApp({session,onLogout}){
     await rlD();t2("Inventaire vidé","er");
   };
 
-  const sendInviteEmail=async(email)=>{
-    // Sends a magic-link email via Supabase Auth. The recipient clicks the link
-    // and lands on the app already authenticated; setupWorkspace then attaches
-    // them to any workspace_members row matching their email.
-    try{
-      const{error}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:window.location.origin}});
-      if(error)console.warn("invite email:",error.message);
-      return !error;
-    }catch(e){console.warn("invite email failed:",e);return false}
-  };
+  const inviteLinkFor=(memberId)=>`${window.location.origin}/?invite=${memberId}`;
   const hInvite=async(email,permissions)=>{
     const ws=workspaceRef.current;if(!ws)return;
     if(members.find(m=>m.email.toLowerCase()===email.toLowerCase())){t2("Cet e-mail est déjà invité","er");return}
-    const{error}=await supabase.from("workspace_members").insert({workspace_id:ws.id,email,role:"member",permissions:permissions||MEMBER_DEFAULT_PERMS()});
+    const{data,error}=await supabase.from("workspace_members").insert({workspace_id:ws.id,email,role:"member",permissions:permissions||MEMBER_DEFAULT_PERMS()}).select("id,email").single();
     if(error){t2("Erreur: "+error.message,"er");return}
-    const sent=await sendInviteEmail(email);
-    await loadMembers();t2(sent?`Invitation envoyée par e-mail à ${email}`:`Invité — l'e-mail n'a pas pu être envoyé, partagez le lien manuellement`,sent?"ok":"er");
+    await loadMembers();
+    setModal({type:"inviteLink",link:inviteLinkFor(data.id),email:data.email,workspace:ws.name});
   };
-  const hResendInvite=async(email)=>{
-    const sent=await sendInviteEmail(email);
-    if(sent)t2(`E-mail renvoyé à ${email}`);else t2("Échec de l'envoi","er");
+  const hShowInviteLink=(member)=>{
+    const ws=workspaceRef.current;if(!ws||!member)return;
+    setModal({type:"inviteLink",link:inviteLinkFor(member.id),email:member.email,workspace:ws.name});
   };
   const hRemoveMember=async(memberId)=>{
     if(!window.confirm("Retirer ce membre de l'espace de travail ?"))return;
@@ -985,13 +977,14 @@ function DashApp({session,onLogout}){
         {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
         {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
         {page==="commandes"&&<StorefrontOrdersPage orders={sfOrders} onUpdateStatus={hUpdateOrderStatus}/>}
-        {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember} onUpdatePerms={hUpdatePerms} onResend={hResendInvite}/>}
+        {page==="team"&&<TeamPage workspace={workspace} members={members} currentUserId={uid} onInvite={hInvite} onRemoveMember={hRemoveMember} onUpdatePerms={hUpdatePerms} onShowLink={hShowInviteLink}/>}
       </div>
     </main>
     {modal?.type==="add"&&<DF title="Ajouter un médicament" onClose={()=>setModal(null)} onSave={hAdd}/>}
     {modal?.type==="edit"&&<DF title="Modifier" drug={modal.drug} onClose={()=>setModal(null)} onSave={hEdit}/>}
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
+    {modal?.type==="inviteLink"&&<InviteLinkModal link={modal.link} email={modal.email} workspace={modal.workspace} onClose={()=>setModal(null)} onToast={t2}/>}
     {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
     {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
@@ -1449,6 +1442,36 @@ function CM({onClose,onImport,fileRef}){
   </div></div>);
 }
 
+/* ═══════ INVITE LINK MODAL (owner copies + shares the unique link) ═══════ */
+function InviteLinkModal({link,email,workspace,onClose,onToast}){
+  const msg=`Bonjour,\n\nVous êtes invité(e) à rejoindre l'espace de travail "${workspace}" sur Speranza Della Pharma.\n\nCliquez sur ce lien pour créer votre compte et choisir votre mot de passe :\n${link}\n\nMerci !`;
+  const copy=async(text,label)=>{
+    try{await navigator.clipboard.writeText(text);onToast?.(`${label} copié dans le presse-papiers`)}
+    catch{onToast?.("Impossible de copier","er")}
+  };
+  const wa=`https://wa.me/?text=${encodeURIComponent(msg)}`;
+  const mailto=`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Invitation — ${workspace}`)}&body=${encodeURIComponent(msg)}`;
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:520}}>
+    <div className="mo-h"><h3>Invitation créée</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
+    <div className="mo-b">
+      <p style={{fontSize:12,color:'var(--t3)',lineHeight:1.6,marginBottom:14}}>
+        Partagez ce lien avec <strong style={{color:'var(--t)'}}>{email}</strong> via WhatsApp, SMS ou e-mail. En l'ouvrant, votre collaborateur créera son compte avec son propre mot de passe et rejoindra automatiquement <strong style={{color:'var(--t)'}}>{workspace}</strong>.
+      </p>
+      <div style={{background:'var(--bg)',border:'1px solid var(--bd2)',borderRadius:10,padding:'10px 12px',fontSize:11,wordBreak:'break-all',color:'var(--t)',fontFamily:'monospace',marginBottom:10}}>{link}</div>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>
+        <button className="bt bt-p" onClick={()=>copy(link,"Lien")}>{Ic.upload({size:12})} Copier le lien</button>
+        <button className="bt bt-s" onClick={()=>copy(msg,"Message complet")}>{Ic.edit({size:12})} Copier le message</button>
+        <a className="bt bt-s" href={wa} target="_blank" rel="noopener noreferrer" style={{textDecoration:'none'}}>WhatsApp</a>
+        <a className="bt bt-s" href={mailto} style={{textDecoration:'none'}}>E-mail</a>
+      </div>
+      <div style={{background:'#FFF8E6',border:'1px solid #F0D98C',borderRadius:10,padding:'10px 12px',fontSize:11,color:'#7A5A1A',lineHeight:1.5}}>
+        <strong>Astuce :</strong> ce lien est unique à {email}. Ne le partagez qu'avec cette personne. Vous pourrez le réafficher plus tard depuis la liste des membres.
+      </div>
+    </div>
+    <div className="mo-f"><button className="bt bt-p" onClick={onClose}>{Ic.check({size:12})} Terminé</button></div>
+  </div></div>);
+}
+
 /* ═══════ TEAM PAGE ═══════ */
 function PermissionsGrid({perms,onChange,disabled}){
   return(<div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6,marginTop:10}}>
@@ -1458,7 +1481,7 @@ function PermissionsGrid({perms,onChange,disabled}){
     </label>)}
   </div>);
 }
-function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpdatePerms,onResend}){
+function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpdatePerms,onShowLink}){
   const[email,setEmail]=useState("");const[busy,setBusy]=useState(false);
   const[invitePerms,setInvitePerms]=useState(MEMBER_DEFAULT_PERMS());
   const[editingId,setEditingId]=useState(null);const[editPerms,setEditPerms]=useState({});
@@ -1501,7 +1524,7 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpd
           </div>
           <span className={`team-role ${m.role}`}>{m.role==="owner"?"Propriétaire":"Membre"}</span>
           {isOwner&&m.role!=="owner"&&<>
-            {!m.accepted_at&&onResend&&<button className="bt bt-g bt-sm" onClick={()=>onResend(m.email)} title="Renvoyer l'e-mail d'invitation">{Ic.upload({size:11})}</button>}
+            {!m.accepted_at&&onShowLink&&<button className="bt bt-p bt-sm" onClick={()=>onShowLink(m)} title="Afficher le lien d'invitation à partager">{Ic.upload({size:11})} Lien</button>}
             <button className="bt bt-g bt-sm" onClick={()=>editing?setEditingId(null):openEditPerms(m)} title="Modifier les permissions">{Ic.edit({size:11})}</button>
             <button className="bt bt-g bt-sm" onClick={()=>onRemoveMember(m.id)} style={{color:'var(--d)'}} title="Retirer">{Ic.x({size:11})}</button>
           </>}
@@ -1524,7 +1547,7 @@ function TeamPage({workspace,members,currentUserId,onInvite,onRemoveMember,onUpd
       <div className="th2"><h3>Inviter un collaborateur</h3></div>
       <div className="team-invite-box">
         <p style={{fontSize:12,color:'var(--t3)',lineHeight:1.6,marginBottom:12}}>
-          Entrez l'adresse e-mail du collaborateur. Il recevra un e-mail avec un lien d'activation. En cliquant dessus, il sera invité à choisir son propre mot de passe personnel — qu'il utilisera ensuite à chaque connexion. Une fois activé, il rejoindra automatiquement votre espace de travail avec les permissions choisies ci-dessous. Vous pouvez inviter autant de collaborateurs que nécessaire.
+          Entrez l'adresse e-mail du collaborateur. Vous recevrez ensuite un lien d'invitation unique à partager (WhatsApp, SMS, e-mail — comme vous voulez). En cliquant sur le lien, votre collaborateur ouvrira une page d'inscription avec son e-mail déjà rempli ; il choisira son propre mot de passe personnel — qu'il utilisera ensuite à chaque connexion. Vous pouvez inviter autant de collaborateurs que nécessaire.
         </p>
         <div style={{display:'flex',gap:8,marginBottom:14}}>
           <div style={{flex:1}}><input className="fi input" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleInvite()} placeholder="collaborateur@exemple.com" style={{width:'100%',padding:'7px 9px',border:'1px solid var(--bd)',borderRadius:'var(--rs)',fontSize:12,fontFamily:"'Outfit',sans-serif",color:'var(--t)',outline:'none'}}/></div>
@@ -2022,51 +2045,84 @@ export default function App(){
   const[session,setSession]=useState(null);const[checking,setChecking]=useState(true);
   const isStorefront=window.location.pathname.startsWith("/store/");
   const sfWsId=isStorefront?window.location.pathname.split("/store/")[1]?.split("/")[0]:null;
-  // Detect a Supabase magic-link / invite redirect BEFORE Supabase strips the hash.
-  // Only sessions originating from such a link should be funnelled through the password-setup gate.
-  if(typeof window!=="undefined"&&window.location.hash&&/access_token|type=(magiclink|invite|recovery|signup)/.test(window.location.hash)){
-    try{sessionStorage.setItem("sp_invite_flow","1")}catch(_){}
-  }
+  const inviteToken=(()=>{try{return new URLSearchParams(window.location.search).get("invite")||null}catch(_){return null}})();
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{setSession(session);setChecking(false)});
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setSession(s));
     return()=>subscription.unsubscribe();
   },[]);
   if(isStorefront&&sfWsId)return<StoreFront wsId={sfWsId}/>;
-  const logout=async()=>{await supabase.auth.signOut();try{sessionStorage.removeItem("sp_invite_flow")}catch(_){}setSession(null)};
+  const logout=async()=>{await supabase.auth.signOut();setSession(null)};
+  const clearInviteFromUrl=()=>{try{const u=new URL(window.location.href);u.searchParams.delete("invite");window.history.replaceState({},"",u.pathname+(u.search?u.search:""))}catch(_){}};
   if(checking)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#F4F7F5'}}><div className="spin" style={{width:32,height:32,border:'3px solid #D4E4DB',borderTopColor:'#1A7F48',borderRadius:'50%',animation:'sp 1s linear infinite'}}/><style>{"@keyframes sp{to{transform:rotate(360deg)}}"}</style></div>;
+  // Invite link takes precedence: signed-out visitors land on the invite signup page;
+  // signed-in visitors already exist as users, so we just drop the invite param and continue.
+  if(inviteToken&&!session)return<InviteSignupPage token={inviteToken} onAuth={s=>{clearInviteFromUrl();setSession(s)}}/>;
+  if(inviteToken&&session)clearInviteFromUrl();
   if(!session)return<LandingPage onAuth={setSession}/>;
-  const viaInvite=(()=>{try{return sessionStorage.getItem("sp_invite_flow")==="1"}catch(_){return false}})();
-  if(viaInvite&&!session.user?.user_metadata?.password_set)return<SetPasswordGate session={session} onDone={s=>{try{sessionStorage.removeItem("sp_invite_flow")}catch(_){};setSession(s)}} onLogout={logout}/>;
   return<DashApp session={session} onLogout={logout}/>;
 }
 
-/* ═══════ SET PASSWORD GATE (first sign-in via invite link) ═══════ */
-function SetPasswordGate({session,onDone,onLogout}){
-  const[p1,setP1]=useState("");const[p2,setP2]=useState("");
+/* ═══════ INVITE SIGNUP PAGE (recipient opens shared link) ═══════ */
+function InviteSignupPage({token,onAuth}){
+  const[info,setInfo]=useState(null);const[loadErr,setLoadErr]=useState("");
+  const[name,setName]=useState("");const[p1,setP1]=useState("");const[p2,setP2]=useState("");
   const[show,setShow]=useState(false);const[busy,setBusy]=useState(false);const[err,setErr]=useState("");
+  useEffect(()=>{(async()=>{
+    const{data,error}=await supabase.rpc("get_invite_info",{invite_id:token});
+    if(error){setLoadErr("Impossible de charger l'invitation. Demandez à l'administrateur de vous renvoyer le lien.");return}
+    const row=Array.isArray(data)?data[0]:data;
+    if(!row){setLoadErr("Cette invitation n'existe pas ou a été supprimée.");return}
+    setInfo(row);
+  })()},[token]);
   const submit=async()=>{
     setErr("");
     if(p1.length<8){setErr("Le mot de passe doit contenir au moins 8 caractères.");return}
     if(p1!==p2){setErr("Les deux mots de passe ne correspondent pas.");return}
     setBusy(true);
-    const{data,error}=await supabase.auth.updateUser({password:p1,data:{password_set:true}});
+    const{data,error}=await supabase.auth.signUp({email:info.email,password:p1,options:{data:{full_name:name||info.email,password_set:true}}});
     setBusy(false);
-    if(error){setErr(error.message);return}
-    // refresh session so the new user_metadata is reflected
-    const{data:{session:s2}}=await supabase.auth.getSession();
-    onDone(s2||{...session,user:data.user});
+    if(error){
+      const m=error.message||"";
+      if(m.toLowerCase().includes("already")){
+        setErr("Un compte existe déjà pour cette adresse. Connectez-vous avec votre mot de passe habituel sur la page d'accueil.");
+      }else setErr(m);
+      return;
+    }
+    if(data.session){onAuth(data.session);return}
+    // No session returned — email confirmation is still ON. Try to sign in directly:
+    const{data:d2,error:e2}=await supabase.auth.signInWithPassword({email:info.email,password:p1});
+    if(e2){
+      setErr("Compte créé, mais la connexion automatique a échoué. L'administrateur doit désactiver « Confirm email » dans Supabase. Vous pouvez aussi vérifier votre boîte de réception pour confirmer votre adresse, puis vous connecter manuellement.");
+      return;
+    }
+    onAuth(d2.session);
   };
   return(<><style>{LCSS}</style><div className="auth-overlay">
-    <div className="auth-box" style={{maxWidth:440}}>
+    <div className="auth-box" style={{maxWidth:460}}>
       <img src={LOGO} alt="Speranza" className="auth-logo" onError={e=>{e.target.style.display='none'}}/>
-      <h3>Définir votre mot de passe</h3>
-      <p className="sub">Bienvenue {session.user.email}. Pour sécuriser votre accès à l'espace de travail de la pharmacie, créez un mot de passe personnel. Vous l'utiliserez à chaque connexion.</p>
-      {err&&<div className="auth-err">{err}</div>}
-      <div className="auth-fi"><label>Nouveau mot de passe</label><div className="auth-pass-wrap"><input type={show?"text":"password"} value={p1} onChange={e=>setP1(e.target.value)} placeholder="Min. 8 caractères" autoFocus/><button type="button" className="auth-pass-eye" onClick={()=>setShow(s=>!s)} title={show?"Masquer":"Afficher"}>{show?Ic.eyeOff({size:16}):Ic.eye({size:16})}</button></div></div>
-      <div className="auth-fi"><label>Confirmer le mot de passe</label><div className="auth-pass-wrap"><input type={show?"text":"password"} value={p2} onChange={e=>setP2(e.target.value)} placeholder="Retapez le mot de passe" onKeyDown={e=>e.key==="Enter"&&submit()}/></div></div>
-      <button className="auth-btn" onClick={submit} disabled={busy||!p1||!p2}>{busy?"Enregistrement...":"Activer mon compte"}</button>
-      <div className="auth-sw" style={{marginTop:14}}><button onClick={onLogout}>Annuler et se déconnecter</button></div>
+      {loadErr?<>
+        <h3>Lien invalide</h3>
+        <p className="sub">{loadErr}</p>
+        <a className="auth-btn" href="/" style={{display:'block',textAlign:'center',textDecoration:'none'}}>Retour à l'accueil</a>
+      </>:!info?<>
+        <h3>Chargement…</h3>
+        <p className="sub">Vérification de votre invitation</p>
+      </>:info.accepted?<>
+        <h3>Déjà membre</h3>
+        <p className="sub">Cette invitation a déjà été acceptée. Connectez-vous avec votre mot de passe pour accéder à l'espace de travail.</p>
+        <a className="auth-btn" href="/" style={{display:'block',textAlign:'center',textDecoration:'none'}}>Aller à la connexion</a>
+      </>:<>
+        <h3>Bienvenue chez {info.workspace_name}</h3>
+        <p className="sub">Créez votre compte personnel pour rejoindre l'espace de travail. Vous utiliserez ces identifiants à chaque connexion.</p>
+        {err&&<div className="auth-err">{err}</div>}
+        <div className="auth-fi"><label>Adresse e-mail</label><input value={info.email} readOnly style={{background:'#F4F7F5',color:'#4A6B5A',cursor:'not-allowed'}}/></div>
+        <div className="auth-fi"><label>Nom complet (optionnel)</label><input value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Jean Mukendi" autoFocus/></div>
+        <div className="auth-fi"><label>Choisissez un mot de passe</label><div className="auth-pass-wrap"><input type={show?"text":"password"} value={p1} onChange={e=>setP1(e.target.value)} placeholder="Min. 8 caractères"/><button type="button" className="auth-pass-eye" onClick={()=>setShow(s=>!s)} title={show?"Masquer":"Afficher"}>{show?Ic.eyeOff({size:16}):Ic.eye({size:16})}</button></div></div>
+        <div className="auth-fi"><label>Confirmer le mot de passe</label><div className="auth-pass-wrap"><input type={show?"text":"password"} value={p2} onChange={e=>setP2(e.target.value)} placeholder="Retapez le mot de passe" onKeyDown={e=>e.key==="Enter"&&submit()}/></div></div>
+        <button className="auth-btn" onClick={submit} disabled={busy||!p1||!p2}>{busy?"Création du compte…":"Créer mon compte et rejoindre"}</button>
+        <div className="auth-sw" style={{marginTop:14,fontSize:11,color:'#4A6B5A'}}>Vous avez déjà un compte ? <a href="/" style={{color:'#1A7F48',fontWeight:600}}>Se connecter</a></div>
+      </>}
     </div>
   </div></>);
 }
