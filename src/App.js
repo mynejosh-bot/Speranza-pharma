@@ -1091,6 +1091,7 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
             <input type="number" min="1" max={d.stock} value={rowQty(d.id)} disabled={d.stock===0}
               onChange={e=>setRowQty(d.id,e.target.value)}
               onFocus={e=>e.target.select()}
+              onMouseUp={e=>e.preventDefault()}
               onBlur={()=>{const v=qtyMap[d.id];if(v===""||v===undefined||parseInt(v,10)<1)setRowQty(d.id,1);}}
               onKeyDown={e=>{if(e.key==="Enter"&&d.stock>0)handleAdd(d);}}/>
             <button className="bt bt-g bt-sm" onClick={()=>handleAdd(d)} disabled={d.stock===0} title="Ajouter au panier" style={{color:d.stock>0?'var(--ac)':undefined}}>{Ic.cart({size:12})}</button>
