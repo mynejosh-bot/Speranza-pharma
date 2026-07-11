@@ -1060,7 +1060,7 @@ function DashApp({session,onLogout}){
 function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
   const[sk,setSk]=useState("name");const[sd,setSd]=useState(1);
   const[qtyMap,setQtyMap]=useState({});
-  const rowQty=id=>{const v=qtyMap[id];return v===undefined||v===""?1:v;};
+  const rowQty=id=>{const v=qtyMap[id];return v===undefined?1:v;};
   const setRowQty=(id,v)=>setQtyMap(m=>({...m,[id]:v}));
   const handleAdd=d=>{const q=Math.max(1,parseInt(qtyMap[d.id],10)||1);onAddToCart(d,Math.min(q,d.stock));setRowQty(d.id,1);};
   const sort=k=>{if(sk===k)setSd(-sd);else{setSk(k);setSd(1)}};
@@ -1091,6 +1091,7 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
             <input type="number" min="1" max={d.stock} value={rowQty(d.id)} disabled={d.stock===0}
               onChange={e=>setRowQty(d.id,e.target.value)}
               onFocus={e=>e.target.select()}
+              onBlur={()=>{const v=qtyMap[d.id];if(v===""||v===undefined||parseInt(v,10)<1)setRowQty(d.id,1);}}
               onKeyDown={e=>{if(e.key==="Enter"&&d.stock>0)handleAdd(d);}}/>
             <button className="bt bt-g bt-sm" onClick={()=>handleAdd(d)} disabled={d.stock===0} title="Ajouter au panier" style={{color:d.stock>0?'var(--ac)':undefined}}>{Ic.cart({size:12})}</button>
           </div>
