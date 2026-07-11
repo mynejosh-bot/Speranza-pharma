@@ -447,6 +447,10 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .inv-item{padding:4px 12px 4px 24px;display:flex;justify-content:space-between;font-size:11px;color:var(--t2)}
 .cart-item-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd2);gap:8px}
 .cart-item-row:last-child{border-bottom:none}
+.add-qty{display:flex;align-items:center;gap:4px}
+.add-qty input{width:46px;height:26px;text-align:center;border:1px solid var(--bd);border-radius:5px;font-size:12px;font-weight:600;outline:none;padding:0;color:var(--t)}
+.add-qty input:focus{border-color:var(--ac)}
+.add-qty input:disabled{opacity:.4;cursor:not-allowed}
 .qty-ctrl{display:flex;align-items:center;gap:4px}
 .qty-ctrl button{width:24px;height:24px;border-radius:5px;border:1px solid var(--bd);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--t2);line-height:1;transition:.1s}
 .qty-ctrl button:hover:not(:disabled){background:var(--al);border-color:var(--ac);color:var(--ac)}
@@ -653,7 +657,7 @@ function DashApp({session,onLogout}){
   const[drugs,setDrugs]=useState(SAMPLE);const[sales,setSales]=useState([]);const[page,setPage]=useState("dashboard");
   const[search,setSearch]=useState("");const[toast,setToast]=useState(null);const[modal,setModal]=useState(null);
   const[loading,setLoading]=useState(true);const[showTour,setShowTour]=useState(false);
-  const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);
+  const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);const[editInvoice,setEditInvoice]=useState(null);
   const[currency,setCurrency]=useState(()=>localStorage.getItem("sp_currency")||"USD");
   const[workspace,setWorkspace]=useState(null);const[members,setMembers]=useState([]);
   const[sfOrders,setSfOrders]=useState([]);
@@ -727,10 +731,11 @@ function DashApp({session,onLogout}){
   const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("sales").select("*").or(f).order("created_at",{ascending:false});setSales(data||[])};
   const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
-  const addToCart=(drug)=>{
+  const addToCart=(drug,qtyToAdd=1)=>{
     const dk=drug.id||drug.name;
-    setCart(prev=>{const ex=prev.find(i=>(i.drug.id||i.drug.name)===dk);if(ex)return prev.map(i=>(i.drug.id||i.drug.name)===dk?{...i,qty:Math.min(i.qty+1,drug.stock)}:i);return[...prev,{drug,qty:1}]});
-    t2(`${drug.name} ajouté au panier`);
+    const add=Math.max(1,parseInt(qtyToAdd,10)||1);
+    setCart(prev=>{const ex=prev.find(i=>(i.drug.id||i.drug.name)===dk);if(ex)return prev.map(i=>(i.drug.id||i.drug.name)===dk?{...i,qty:Math.min(i.qty+add,drug.stock)}:i);return[...prev,{drug,qty:Math.min(add,drug.stock)}]});
+    t2(add>1?`${add} × ${drug.name} ajoutés au panier`:`${drug.name} ajouté au panier`);
   };
 
   const hAdd=async(drug)=>{const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;const{error}=await supabase.from("drugs").insert({...drug,user_id:uid,workspace_id:wsId});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
@@ -790,6 +795,50 @@ function DashApp({session,onLogout}){
     });
     setShowCart(false);
     t2("Devis généré (aucune vente enregistrée)");
+  };
+
+  // Save edits to an existing invoice: adjust stock by the qty delta per line,
+  // restore stock for removed lines, recompute discounted totals, persist to Supabase.
+  const hSaveInvoice=async({originalItems,editedItems,removedIds,customer,print})=>{
+    const clean=editedItems
+      .map(it=>({...it,qty:Math.max(1,parseInt(it.qty,10)||1),unit_price:Math.max(0,Number(it.unit_price)||0)}))
+      .filter(it=>!removedIds.includes(it.id));
+    if(clean.length===0){t2("Une facture doit contenir au moins un article","er");return;}
+    const subtotal=clean.reduce((s,i)=>s+i.unit_price*i.qty,0);
+    const rem=remiseInfo(subtotal);
+    const factor=1-rem.rate;
+    const custName=(customer||"").trim()||null;
+    const origById=Object.fromEntries(originalItems.map(o=>[o.id,o]));
+    try{
+      // Restore stock for removed lines, then delete them.
+      for(const id of removedIds){
+        const o=origById[id];if(!o)continue;
+        if(o.drug_id){const d=drugs.find(x=>x.id===o.drug_id);if(d)await supabase.from("drugs").update({stock:d.stock+Number(o.qty)}).eq("id",o.drug_id);}
+        await supabase.from("sales").delete().eq("id",id);
+      }
+      // Update remaining lines + adjust stock by the delta (selling more reduces stock).
+      for(const it of clean){
+        const o=origById[it.id];
+        const delta=it.qty-(o?Number(o.qty):0);
+        if(delta!==0&&it.drug_id){const d=drugs.find(x=>x.id===it.drug_id);if(d)await supabase.from("drugs").update({stock:Math.max(0,d.stock-delta)}).eq("id",it.drug_id);}
+        const patch={qty:it.qty,unit_price:it.unit_price,total:it.unit_price*it.qty*factor};
+        let{error}=await supabase.from("sales").update({...patch,customer_name:custName}).eq("id",it.id);
+        if(error&&(error.message.includes("column")||error.code==="PGRST204")){
+          const res=await supabase.from("sales").update(patch).eq("id",it.id);error=res.error;
+        }
+        if(error){t2("Erreur: "+error.message,"er");return;}
+      }
+      await rlD();await rlS();
+      setEditInvoice(null);
+      t2(`Facture ${editInvoice?.number||""} mise à jour`);
+      if(print){
+        setInvoice({
+          number:editInvoice.number,date:editInvoice.date,customer:custName||"",
+          items:clean.map(i=>({drug_name:i.drug_name,qty:i.qty,unit_price:i.unit_price,total:i.unit_price*i.qty})),
+          subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:false,
+        });
+      }
+    }catch(e){t2("Erreur: "+(e?.message||e),"er");}
   };
 
   const hClearAnalytics=async()=>{
@@ -986,7 +1035,7 @@ function DashApp({session,onLogout}){
       <div className="cnt">
         {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmt(tr)})</span></div></div></div></div><DT drugs={flt} fmt={fmt} onAddToCart={addToCart} compact/></>}
         {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
-        {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt} fmtFC={fmtFC} onReset={allowed("data")?hClearAnalytics:null}/>}
+        {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt} fmtFC={fmtFC} onReset={allowed("data")?hClearAnalytics:null} onEditInvoice={(inv,g)=>setEditInvoice({number:inv,...g})}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
         {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
         {page==="ruptures"&&<RupturesPage ruptures={ruptures} onAdd={hAddRupture} onDel={hDelRupture}/>}
@@ -1001,6 +1050,7 @@ function DashApp({session,onLogout}){
     {modal?.type==="inviteLink"&&<InviteLinkModal link={modal.link} email={modal.email} workspace={modal.workspace} onClose={()=>setModal(null)} onToast={t2}/>}
     {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
     {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmtFC}/>}
+    {editInvoice&&<InvoiceEditModal group={editInvoice} onSave={hSaveInvoice} onClose={()=>setEditInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
   </div></>);
@@ -1009,6 +1059,10 @@ function DashApp({session,onLogout}){
 /* ═══════ DRUG TABLE ═══════ */
 function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
   const[sk,setSk]=useState("name");const[sd,setSd]=useState(1);
+  const[qtyMap,setQtyMap]=useState({});
+  const rowQty=id=>{const v=qtyMap[id];return v===undefined||v===""?1:v;};
+  const setRowQty=(id,v)=>setQtyMap(m=>({...m,[id]:v}));
+  const handleAdd=d=>{const q=Math.max(1,parseInt(qtyMap[d.id],10)||1);onAddToCart(d,Math.min(q,d.stock));setRowQty(d.id,1);};
   const sort=k=>{if(sk===k)setSd(-sd);else{setSk(k);setSd(1)}};
   const sorted=[...drugs].sort((a,b)=>{let va=a[sk],vb=b[sk];if(typeof va==="string"){va=(va||"").toLowerCase();vb=(vb||"").toLowerCase()}return va<vb?-sd:va>vb?sd:0});
   const SA=({col})=>sk===col?<span style={{marginLeft:2,fontSize:8}}>{sd===1?"▲":"▼"}</span>:null;
@@ -1033,7 +1087,13 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
         <td style={{fontWeight:500}}>{fmt(d.price)}</td>
         <td>{d.expiry_date?<span className={`eb ${es}`}>{es==="expired"?"EXPIRÉ":d.expiry_date}</span>:"—"}</td>
         <td><div className="ac-c">
-          <button className="bt bt-g bt-sm" onClick={()=>onAddToCart(d)} disabled={d.stock===0} title="Ajouter au panier" style={{color:d.stock>0?'var(--ac)':undefined}}>{Ic.cart({size:12})}</button>
+          <div className="add-qty" title="Quantité à ajouter">
+            <input type="number" min="1" max={d.stock} value={rowQty(d.id)} disabled={d.stock===0}
+              onChange={e=>setRowQty(d.id,e.target.value)}
+              onFocus={e=>e.target.select()}
+              onKeyDown={e=>{if(e.key==="Enter"&&d.stock>0)handleAdd(d);}}/>
+            <button className="bt bt-g bt-sm" onClick={()=>handleAdd(d)} disabled={d.stock===0} title="Ajouter au panier" style={{color:d.stock>0?'var(--ac)':undefined}}>{Ic.cart({size:12})}</button>
+          </div>
           {!compact&&<>
             <button className="bt bt-g bt-sm" onClick={()=>onRes(d)} title="Réappro.">{Ic.plus({size:12})}</button>
             <button className="bt bt-g bt-sm" onClick={()=>onEdit(d)} title="Modifier">{Ic.edit({size:12})}</button>
@@ -1261,8 +1321,85 @@ tbody tr:nth-child(even){background:#FAFCFB}
   </div></div>);
 }
 
+/* ═══════ INVOICE EDIT MODAL ═══════ */
+function InvoiceEditModal({group,onSave,onClose,fmt}){
+  const original=group.items||[];
+  const[items,setItems]=useState(()=>original.map(s=>({
+    id:s.id,drug_id:s.drug_id,drug_name:s.drug_name,
+    qty:Number(s.qty),unit_price:Number(s.unit_price),
+  })));
+  const[removed,setRemoved]=useState([]);
+  const[customer,setCustomer]=useState(group.customer||"");
+  const[saving,setSaving]=useState(false);
+  const setLine=(id,patch)=>setItems(prev=>prev.map(it=>it.id===id?{...it,...patch}:it));
+  const toggleRemove=id=>setRemoved(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  const live=items.filter(it=>!removed.includes(it.id));
+  const subtotal=live.reduce((s,i)=>s+(Number(i.unit_price)||0)*(Math.max(1,parseInt(i.qty,10)||1)),0);
+  const rem=remiseInfo(subtotal);
+  const save=async(print)=>{
+    if(saving||live.length===0)return;
+    setSaving(true);
+    try{await onSave({originalItems:original,editedItems:items,removedIds:removed,customer,print});}
+    finally{setSaving(false);}
+  };
+  return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:'min(760px,94vw)',maxHeight:'92vh'}}>
+    <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
+      <div><h3 style={{fontSize:18,display:'flex',alignItems:'center',gap:8}}>{Ic.edit({size:16})} Modifier la facture</h3>
+        <div style={{fontSize:11,color:'var(--t3)',marginTop:3,fontFamily:'monospace'}}>{group.number} · {group.date}{group.time?` · ${group.time}`:""}</div>
+      </div>
+      <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
+    </div>
+    <div className="mo-b" style={{maxHeight:'64vh',overflowY:'auto'}}>
+      <div className="fi" style={{marginBottom:14}}><label>Nom du client</label><input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Client de passage"/></div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+          <thead><tr style={{background:'var(--al)'}}>
+            <th style={{padding:'8px 10px',textAlign:'left',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Médicament</th>
+            <th style={{padding:'8px 10px',textAlign:'center',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Qté</th>
+            <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Prix unit. (FC)</th>
+            <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Total</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            {items.map(it=>{const gone=removed.includes(it.id);const q=Math.max(1,parseInt(it.qty,10)||1);const line=(Number(it.unit_price)||0)*q;return(
+              <tr key={it.id} style={{borderBottom:'1px solid var(--bd2)',opacity:gone?.4:1}}>
+                <td style={{padding:'8px 10px',fontWeight:500,textDecoration:gone?'line-through':'none'}}>{it.drug_name}</td>
+                <td style={{padding:'8px 10px',textAlign:'center'}}>
+                  <input type="number" min="1" value={it.qty} disabled={gone} onChange={e=>setLine(it.id,{qty:e.target.value})} onFocus={e=>e.target.select()} style={{width:56,height:26,textAlign:'center',border:'1px solid var(--bd)',borderRadius:5,fontSize:12,fontWeight:600,outline:'none',padding:0}}/>
+                </td>
+                <td style={{padding:'8px 10px',textAlign:'right'}}>
+                  <input type="number" min="0" value={Math.round((Number(it.unit_price)||0)*FC_RATE)} disabled={gone} onChange={e=>setLine(it.id,{unit_price:(Number(e.target.value)||0)/FC_RATE})} onFocus={e=>e.target.select()} style={{width:90,height:26,textAlign:'right',border:'1px solid var(--bd)',borderRadius:5,fontSize:12,fontWeight:600,outline:'none',padding:'0 6px'}}/>
+                </td>
+                <td style={{padding:'8px 10px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(line)}</td>
+                <td style={{padding:'8px 10px',textAlign:'right'}}>
+                  <button className="bt bt-g bt-sm" onClick={()=>toggleRemove(it.id)} style={{color:gone?'var(--ac)':'var(--d)'}} title={gone?"Rétablir":"Retirer"}>{gone?Ic.plus({size:11}):Ic.trash({size:11})}</button>
+                </td>
+              </tr>
+            )})}
+          </tbody>
+        </table>
+      </div>
+      <div className="cart-summary" style={{marginTop:14}}>
+        {rem.applies?<>
+          <div className="cart-sum-row" style={{fontWeight:600}}><span>Sous-total</span><span>{fmt(subtotal)}</span></div>
+          <div className="cart-sum-row" style={{color:'#0F4C2A',fontWeight:600}}><span>Remise (3%)</span><span>− {fmt(rem.discount)}</span></div>
+          <div className="cart-total-row"><span>Total à payer</span><span>{fmt(rem.final)}</span></div>
+        </>:<div className="cart-total-row"><span>Total</span><span>{fmt(subtotal)}</span></div>}
+      </div>
+      <div style={{fontSize:10,color:'var(--t3)',marginTop:8,fontStyle:'italic'}}>Modifier une quantité ajuste automatiquement le stock. Les lignes retirées remettent leur stock en inventaire.</div>
+    </div>
+    <div className="mo-f" style={{justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
+      <button className="bt bt-s" onClick={onClose}>Annuler</button>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <button className="bt bt-s" onClick={()=>save(false)} disabled={saving||live.length===0}>{Ic.check({size:13})} Enregistrer</button>
+        <button className="bt bt-p" onClick={()=>save(true)} disabled={saving||live.length===0} style={{gap:7}}>{Ic.print({size:13})} {saving?"…":"Enregistrer et imprimer"}</button>
+      </div>
+    </div>
+  </div></div>);
+}
+
 /* ═══════ ANALYTICS PAGE ═══════ */
-function AnalyticsPage({sales,fmt,fmtFC,onReset}){
+function AnalyticsPage({sales,fmt,fmtFC,onReset,onEditInvoice}){
   const[period,setPeriod]=useState("7d");
   const getStart=p=>{const n=new Date();const d={today:0,"7d":7,"14d":14,"30d":30,"3m":90}[p]||7;if(p==="today")return today();return new Date(n-d*864e5).toISOString().split("T")[0]};
   const start=getStart(period);
@@ -1368,7 +1505,7 @@ function AnalyticsPage({sales,fmt,fmtFC,onReset}){
         return(<div key={inv} className="inv-row">
           <div className="inv-header">
             <div><span style={{fontWeight:600,color:'var(--ac)',fontFamily:'monospace'}}>{inv}</span>{g.customer&&<span style={{marginLeft:8,color:'var(--t3)'}}>· {g.customer}</span>}{remise>0.001&&<span style={{marginLeft:8,fontSize:9,padding:'2px 7px',borderRadius:999,background:'#E6F4ED',color:'#0F4C2A',fontWeight:600}}>Remise {fmt(remise)}</span>}</div>
-            <div style={{display:'flex',gap:12,alignItems:'center'}}><span style={{color:'var(--t3)'}}>{g.date}{g.time?` · ${g.time}`:""}</span><span style={{fontWeight:700,color:'var(--ok)'}}>{fmt(g.total)}</span></div>
+            <div style={{display:'flex',gap:12,alignItems:'center'}}><span style={{color:'var(--t3)'}}>{g.date}{g.time?` · ${g.time}`:""}</span><span style={{fontWeight:700,color:'var(--ok)'}}>{fmt(g.total)}</span>{onEditInvoice&&<button className="bt bt-g bt-sm" onClick={()=>onEditInvoice(inv,g)} title="Modifier / imprimer la facture" style={{color:'var(--ac)'}}>{Ic.edit({size:12})}</button>}</div>
           </div>
           {g.items.map((s,i)=><div key={i} className="inv-item"><span>{s.drug_name} <span style={{color:'var(--t3)'}}>×{s.qty}</span></span><span>{fmt(s.total)}</span></div>)}
         </div>);
