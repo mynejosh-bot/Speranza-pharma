@@ -1229,12 +1229,12 @@ function InvoiceModal({invoice,onClose,fmt}){
       <tr class="rem-row"><td colspan="3" style="text-align:right">Remise (3%)</td><td style="text-align:right">− ${fc(discount)}</td></tr>
       <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL À PAYER</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`
       :`<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`;
-    const logoUrl=window.location.origin+LOGO;
+    const render=(logoSrc)=>{
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${docLabel} ${invoice.number}</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;max-width:640px;margin:40px auto;color:#1A2E23;font-size:13px;padding:0 20px}
 .header{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:3px solid #0F4C2A;margin-bottom:22px}
-.logo{width:104px;height:104px;border-radius:14px;object-fit:contain}
+.logo{width:132px;height:132px;object-fit:contain}
 .company-name{font-size:22px;font-weight:700;color:#0F4C2A;letter-spacing:-.3px}
 .company-sub{font-size:11px;color:#5A8A6A;margin-top:3px}
 .meta{display:flex;justify-content:space-between;margin-bottom:22px;padding:14px 16px;background:#F4F7F5;border-radius:10px;font-size:12px;gap:20px}
@@ -1261,7 +1261,7 @@ tr{page-break-inside:avoid}
 .footer{page-break-inside:avoid}
 @media print{body{margin:14px auto}}
 </style></head><body>
-<div class="header"><img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/><div><div class="company-name">Speranza Della Pharma</div><div class="company-sub">Système de Gestion Pharmaceutique</div><div class="doc-type ${isQuote?'doc-quote':'doc-invoice'}">${isQuote?'Devis — non payé':'Facture officielle'}</div></div></div>
+<div class="header"><img src="${logoSrc}" class="logo" onerror="this.style.display='none'"/><div><div class="company-name">Speranza Della Pharma</div><div class="company-sub">Système de Gestion Pharmaceutique</div><div class="doc-type ${isQuote?'doc-quote':'doc-invoice'}">${isQuote?'Devis — non payé':'Facture officielle'}</div></div></div>
 <div class="meta">
   <div class="meta-block"><strong>${docLabel} N°</strong><span>${invoice.number}</span></div>
   <div class="meta-block"><strong>Date</strong><span>${invoice.date}</span></div>
@@ -1272,6 +1272,21 @@ tr{page-break-inside:avoid}
 <div class="footer">${isQuote?'Ce devis est valable 7 jours. Aucun engagement de vente.':'Merci pour votre confiance — Speranza Della Pharma'}<br/>${isQuote?'Présentez ce document pour validation et achat.':'Ce document est une facture officielle'}</div>
 </body></html>`);
     win.document.close();setTimeout(()=>win.print(),400);
+    };
+    // Strip the logo's white background (make near-white pixels transparent) at print time.
+    const logoUrl=window.location.origin+LOGO;
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;
+        const ctx=c.getContext("2d");ctx.drawImage(img,0,0);
+        const d=ctx.getImageData(0,0,c.width,c.height);const p=d.data;
+        for(let i=0;i<p.length;i+=4){if(p[i]>240&&p[i+1]>240&&p[i+2]>240)p[i+3]=0;}
+        ctx.putImageData(d,0,0);render(c.toDataURL("image/png"));
+      }catch(e){render(logoUrl);}
+    };
+    img.onerror=()=>render(logoUrl);
+    img.src=logoUrl;
   };
   return(<div className="mo-bk"><div className="mo" onClick={e=>e.stopPropagation()} style={{width:580,maxWidth:'96vw'}}>
     <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
