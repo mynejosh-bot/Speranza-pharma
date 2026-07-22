@@ -1148,6 +1148,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
   const subtotal=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
   const rem=remiseInfo(subtotal);
   const totalQty=cart.reduce((s,i)=>s+i.qty,0);
+  const sortedCart=[...cart].sort((a,b)=>(a.drug.name||"").localeCompare(b.drug.name||"","fr",{sensitivity:"base"}));
   const handleQuote=()=>{if(cart.length===0||!onQuote)return;onQuote(cart,{name:customer,phone,address,notes})};
   return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:'min(860px,94vw)',maxHeight:'92vh'}}>
     <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
@@ -1161,7 +1162,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
         ?<div className="emp" style={{padding:'48px 0'}}>{Ic.cart({size:36,color:'var(--t3)'})}<p style={{marginTop:14,fontSize:13}}>Le panier est vide.<br/>Ajoutez des médicaments depuis l'inventaire.</p></div>
         :<>
           <div>
-            {cart.map(item=>{const key=dk(item.drug);const line=item.drug.price*item.qty;return(
+            {sortedCart.map(item=>{const key=dk(item.drug);const line=item.drug.price*item.qty;return(
               <div key={key} className="cart-item">
                 <div>
                   <div className="cart-item-name">{item.drug.name}</div>
@@ -1185,7 +1186,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
             <div className="fi" style={{gridColumn:"1 / -1"}}><label>Notes (optionnel)</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Remarques sur la vente…"/></div>
           </div>
           <div className="cart-summary">
-            {cart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
+            {sortedCart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
             {rem.applies?<>
               <div className="cart-sum-row" style={{fontWeight:600,paddingTop:8,borderTop:'1px dashed var(--bd2)'}}><span>Sous-total</span><span>{fmt(subtotal)}</span></div>
               <div className="cart-sum-row" style={{color:'#0F4C2A',fontWeight:600}}><span>Remise (3%)</span><span>− {fmt(rem.discount)}</span></div>
@@ -1221,7 +1222,8 @@ function InvoiceModal({invoice,onClose,fmt}){
   const printInvoice=()=>{
     const win=window.open("","_blank");
     const fc=n=>fmtAmt(n,"FC");
-    const rows=invoice.items.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fc(i.unit_price)}</td><td style="text-align:right">${fc(i.total)}</td></tr>`).join("");
+    const sortedItems=[...invoice.items].sort((a,b)=>(a.drug_name||"").localeCompare(b.drug_name||"","fr",{sensitivity:"base"}));
+    const rows=sortedItems.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fc(i.unit_price)}</td><td style="text-align:right">${fc(i.total)}</td></tr>`).join("");
     const summaryRows=hasRemise?`
       <tr class="sub-row"><td colspan="3" style="text-align:right">Sous-total</td><td style="text-align:right">${fc(subtotal)}</td></tr>
       <tr class="rem-row"><td colspan="3" style="text-align:right">Remise (3%)</td><td style="text-align:right">− ${fc(discount)}</td></tr>
@@ -1232,7 +1234,7 @@ function InvoiceModal({invoice,onClose,fmt}){
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;max-width:640px;margin:40px auto;color:#1A2E23;font-size:13px;padding:0 20px}
 .header{display:flex;align-items:center;gap:16px;padding-bottom:18px;border-bottom:3px solid #0F4C2A;margin-bottom:22px}
-.logo{width:56px;height:56px;border-radius:10px;object-fit:contain}
+.logo{width:104px;height:104px;border-radius:14px;object-fit:contain}
 .company-name{font-size:22px;font-weight:700;color:#0F4C2A;letter-spacing:-.3px}
 .company-sub{font-size:11px;color:#5A8A6A;margin-top:3px}
 .meta{display:flex;justify-content:space-between;margin-bottom:22px;padding:14px 16px;background:#F4F7F5;border-radius:10px;font-size:12px;gap:20px}
@@ -1254,7 +1256,10 @@ tbody tr:nth-child(even){background:#FAFCFB}
 .doc-quote{background:#FFF4E5;color:#A06400;border:1px solid #FFB960}
 .doc-invoice{background:#E6F4ED;color:#0F4C2A;border:1px solid #5BB280}
 .footer{text-align:center;margin-top:32px;font-size:10px;color:#8AA69A;border-top:1px solid #E8F0EC;padding-top:16px;line-height:1.8}
-@media print{body{margin:10px}.footer{position:fixed;bottom:10px;width:100%}}
+thead{display:table-header-group}
+tr{page-break-inside:avoid}
+.footer{page-break-inside:avoid}
+@media print{body{margin:14px auto}}
 </style></head><body>
 <div class="header"><img src="${logoUrl}" class="logo" onerror="this.style.display='none'"/><div><div class="company-name">Speranza Della Pharma</div><div class="company-sub">Système de Gestion Pharmaceutique</div><div class="doc-type ${isQuote?'doc-quote':'doc-invoice'}">${isQuote?'Devis — non payé':'Facture officielle'}</div></div></div>
 <div class="meta">
@@ -1291,7 +1296,7 @@ tbody tr:nth-child(even){background:#FAFCFB}
             <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Total</th>
           </tr></thead>
           <tbody>
-            {invoice.items.map((item,i)=><tr key={i} style={{borderBottom:'1px solid var(--bd2)'}}>
+            {[...invoice.items].sort((a,b)=>(a.drug_name||"").localeCompare(b.drug_name||"","fr",{sensitivity:"base"})).map((item,i)=><tr key={i} style={{borderBottom:'1px solid var(--bd2)'}}>
               <td style={{padding:'9px 10px',fontWeight:500}}>{item.drug_name}</td>
               <td style={{padding:'9px 10px',textAlign:'center',color:'var(--t2)'}}>{item.qty}</td>
               <td style={{padding:'9px 10px',textAlign:'right',color:'var(--t2)'}}>{fmt(item.unit_price)}</td>
