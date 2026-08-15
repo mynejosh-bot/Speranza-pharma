@@ -410,6 +410,8 @@ tbody td{padding:8px 11px;vertical-align:middle}
 .kpi-value{font-size:22px;font-weight:700;color:var(--t);letter-spacing:-.3px;line-height:1.1}
 .kpi-sub{font-size:10px;color:var(--t3);margin-top:6px;line-height:1.4}
 .an-row{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px}
+.top-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:760px){.top-row{grid-template-columns:1fr}}
 .chart-card,.top-card{background:var(--card);border:1px solid var(--bd2);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(15,76,42,.04)}
 .card-h{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px}
 .card-h h3{font-size:14px;font-weight:600;color:var(--t);margin:0}
@@ -816,17 +818,29 @@ function DashApp({session,onLogout}){
         if(o.drug_id){const d=drugs.find(x=>x.id===o.drug_id);if(d)await supabase.from("drugs").update({stock:d.stock+Number(o.qty)}).eq("id",o.drug_id);}
         await supabase.from("sales").delete().eq("id",id);
       }
-      // Update remaining lines + adjust stock by the delta (selling more reduces stock).
+      const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;
+      // Update existing lines (adjust stock by the qty delta) and insert brand-new lines.
       for(const it of clean){
         const o=origById[it.id];
-        const delta=it.qty-(o?Number(o.qty):0);
-        if(delta!==0&&it.drug_id){const d=drugs.find(x=>x.id===it.drug_id);if(d)await supabase.from("drugs").update({stock:Math.max(0,d.stock-delta)}).eq("id",it.drug_id);}
-        const patch={qty:it.qty,unit_price:it.unit_price,total:it.unit_price*it.qty*factor};
-        let{error}=await supabase.from("sales").update({...patch,customer_name:custName}).eq("id",it.id);
-        if(error&&(error.message.includes("column")||error.code==="PGRST204")){
-          const res=await supabase.from("sales").update(patch).eq("id",it.id);error=res.error;
+        if(o){
+          const delta=it.qty-Number(o.qty);
+          if(delta!==0&&it.drug_id){const d=drugs.find(x=>x.id===it.drug_id);if(d)await supabase.from("drugs").update({stock:Math.max(0,d.stock-delta)}).eq("id",it.drug_id);}
+          const patch={qty:it.qty,unit_price:it.unit_price,total:it.unit_price*it.qty*factor};
+          let{error}=await supabase.from("sales").update({...patch,customer_name:custName}).eq("id",it.id);
+          if(error&&(error.message.includes("column")||error.code==="PGRST204")){
+            const res=await supabase.from("sales").update(patch).eq("id",it.id);error=res.error;
+          }
+          if(error){t2("Erreur: "+error.message,"er");return;}
+        }else{
+          // New medicine added to the invoice → decrement its stock and insert a sale row.
+          if(it.drug_id){const d=drugs.find(x=>x.id===it.drug_id);if(d)await supabase.from("drugs").update({stock:Math.max(0,d.stock-it.qty)}).eq("id",it.drug_id);}
+          const row={user_id:uid,workspace_id:wsId,drug_id:it.drug_id,drug_name:it.drug_name,qty:it.qty,unit_price:it.unit_price,total:it.unit_price*it.qty*factor,sale_date:editInvoice.date||today(),sale_time:editInvoice.time||new Date().toLocaleTimeString(),invoice_number:editInvoice.number,customer_name:custName};
+          let{error}=await supabase.from("sales").insert(row);
+          if(error&&(error.message.includes("column")||error.code==="PGRST204")){
+            const{invoice_number,customer_name,...basic}=row;const res=await supabase.from("sales").insert(basic);error=res.error;
+          }
+          if(error){t2("Erreur: "+error.message,"er");return;}
         }
-        if(error){t2("Erreur: "+error.message,"er");return;}
       }
       await rlD();await rlS();
       setEditInvoice(null);
@@ -839,6 +853,21 @@ function DashApp({session,onLogout}){
         });
       }
     }catch(e){t2("Erreur: "+(e?.message||e),"er");}
+  };
+
+  // Open the invoice editor from a confirmed-sale invoice (add/modify medicines after the fact).
+  const openEditFromInvoice=(inv)=>{
+    if(!inv||inv.quote)return;
+    const rows=sales.filter(s=>(s.invoice_number||String(s.id))===inv.number);
+    if(!rows.length){t2("Impossible de retrouver cette facture pour la modifier","er");return;}
+    const g={
+      date:rows[0].sale_date,time:rows[0].sale_time,customer:rows[0].customer_name||"",
+      items:rows,
+      subtotal:rows.reduce((s,r)=>s+Number(r.qty)*Number(r.unit_price),0),
+      total:rows.reduce((s,r)=>s+Number(r.total),0),
+    };
+    setInvoice(null);
+    setEditInvoice({number:inv.number,...g});
   };
 
   const hClearAnalytics=async()=>{
@@ -1049,8 +1078,8 @@ function DashApp({session,onLogout}){
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
     {modal?.type==="inviteLink"&&<InviteLinkModal link={modal.link} email={modal.email} workspace={modal.workspace} onClose={()=>setModal(null)} onToast={t2}/>}
     {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
-    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} fmt={fmtFC}/>}
-    {editInvoice&&<InvoiceEditModal group={editInvoice} onSave={hSaveInvoice} onClose={()=>setEditInvoice(null)} fmt={fmtFC}/>}
+    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} onEdit={()=>openEditFromInvoice(invoice)} fmt={fmtFC}/>}
+    {editInvoice&&<InvoiceEditModal group={editInvoice} drugs={drugs} onSave={hSaveInvoice} onClose={()=>setEditInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
   </div></>);
@@ -1212,7 +1241,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
 }
 
 /* ═══════ INVOICE MODAL ═══════ */
-function InvoiceModal({invoice,onClose,fmt}){
+function InvoiceModal({invoice,onClose,fmt,onEdit}){
   const isQuote=!!invoice.quote;
   const docLabel=isQuote?"Devis":"Facture";
   const subtotal=invoice.subtotal??invoice.total;
@@ -1336,15 +1365,18 @@ tr{page-break-inside:avoid}
       </div>
       <div style={{fontSize:10,color:'var(--t3)',marginTop:10,textAlign:'center'}}>{isQuote?'Devis en Francs Congolais (FC) — aucune vente enregistrée':'Facture en Francs Congolais (FC)'}</div>
     </div>
-    <div className="mo-f" style={{justifyContent:'space-between'}}>
+    <div className="mo-f" style={{justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
-      <button className="bt bt-p" onClick={printInvoice} style={{gap:7}}>{Ic.print({size:13})} {isQuote?'Imprimer le devis':'Imprimer la facture'}</button>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        {onEdit&&!isQuote&&<button className="bt bt-s" onClick={onEdit} style={{gap:7}}>{Ic.edit({size:13})} Modifier / ajouter</button>}
+        <button className="bt bt-p" onClick={printInvoice} style={{gap:7}}>{Ic.print({size:13})} {isQuote?'Imprimer le devis':'Imprimer la facture'}</button>
+      </div>
     </div>
   </div></div>);
 }
 
 /* ═══════ INVOICE EDIT MODAL ═══════ */
-function InvoiceEditModal({group,onSave,onClose,fmt}){
+function InvoiceEditModal({group,onSave,onClose,fmt,drugs=[]}){
   const original=group.items||[];
   const[items,setItems]=useState(()=>original.map(s=>({
     id:s.id,drug_id:s.drug_id,drug_name:s.drug_name,
@@ -1355,6 +1387,15 @@ function InvoiceEditModal({group,onSave,onClose,fmt}){
   const[saving,setSaving]=useState(false);
   const setLine=(id,patch)=>setItems(prev=>prev.map(it=>it.id===id?{...it,...patch}:it));
   const toggleRemove=id=>setRemoved(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  const addDrug=drugId=>{
+    const d=drugs.find(x=>String(x.id)===String(drugId));if(!d)return;
+    setItems(prev=>{
+      const ex=prev.find(it=>it.drug_id===d.id&&!removed.includes(it.id));
+      if(ex)return prev.map(it=>it===ex?{...it,qty:(parseInt(it.qty,10)||0)+1}:it);
+      return[...prev,{id:`new-${Date.now()}-${prev.length}`,isNew:true,drug_id:d.id,drug_name:d.name,qty:1,unit_price:d.price}];
+    });
+  };
+  const drugOptions=[...drugs].sort((a,b)=>(a.name||"").localeCompare(b.name||"","fr",{sensitivity:"base"}));
   const live=items.filter(it=>!removed.includes(it.id));
   const subtotal=live.reduce((s,i)=>s+(Number(i.unit_price)||0)*(Math.max(1,parseInt(i.qty,10)||1)),0);
   const rem=remiseInfo(subtotal);
@@ -1401,6 +1442,13 @@ function InvoiceEditModal({group,onSave,onClose,fmt}){
           </tbody>
         </table>
       </div>
+      {drugOptions.length>0&&<div style={{marginTop:12}}>
+        <select value="" onChange={e=>{if(e.target.value){addDrug(e.target.value);e.target.value="";}}}
+          style={{width:'100%',height:38,border:'1px dashed var(--ac)',borderRadius:8,fontSize:13,fontWeight:600,color:'var(--ac)',background:'var(--al)',padding:'0 10px',cursor:'pointer',outline:'none'}}>
+          <option value="">+ Ajouter un médicament à la facture…</option>
+          {drugOptions.map(d=><option key={d.id} value={d.id} disabled={d.stock===0}>{d.name}{d.stock===0?" (épuisé)":` — stock ${d.stock}`}</option>)}
+        </select>
+      </div>}
       <div className="cart-summary" style={{marginTop:14}}>
         {rem.applies?<>
           <div className="cart-sum-row" style={{fontWeight:600}}><span>Sous-total</span><span>{fmt(subtotal)}</span></div>
@@ -1408,7 +1456,7 @@ function InvoiceEditModal({group,onSave,onClose,fmt}){
           <div className="cart-total-row"><span>Total à payer</span><span>{fmt(rem.final)}</span></div>
         </>:<div className="cart-total-row"><span>Total</span><span>{fmt(subtotal)}</span></div>}
       </div>
-      <div style={{fontSize:10,color:'var(--t3)',marginTop:8,fontStyle:'italic'}}>Modifier une quantité ajuste automatiquement le stock. Les lignes retirées remettent leur stock en inventaire.</div>
+      <div style={{fontSize:10,color:'var(--t3)',marginTop:8,fontStyle:'italic'}}>Ajouter ou modifier une quantité ajuste automatiquement le stock. Les lignes retirées remettent leur stock en inventaire.</div>
     </div>
     <div className="mo-f" style={{justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
       <button className="bt bt-s" onClick={onClose}>Annuler</button>
@@ -1464,6 +1512,7 @@ function AnalyticsPage({sales,fmt,fmtFC,onReset,onEditInvoice}){
 
   const drugMap={};filtered.forEach(s=>{if(!drugMap[s.drug_name])drugMap[s.drug_name]={qty:0,revenue:0};drugMap[s.drug_name].qty+=Number(s.qty);drugMap[s.drug_name].revenue+=Number(s.total)});
   const top5=Object.entries(drugMap).sort((a,b)=>b[1].qty-a[1].qty).slice(0,5);
+  const top5rev=Object.entries(drugMap).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,5);
 
   const grouped={};filtered.forEach(s=>{const k=s.invoice_number||s.id;if(!grouped[k])grouped[k]={date:s.sale_date,time:s.sale_time,customer:s.customer_name,items:[],subtotal:0,total:0};grouped[k].items.push(s);grouped[k].subtotal+=Number(s.qty)*Number(s.unit_price);grouped[k].total+=Number(s.total)});
   const sortedInv=Object.entries(grouped).sort((a,b)=>{const c=(b[1].date||"").localeCompare(a[1].date||"");return c!==0?c:(b[1].time||"").localeCompare(a[1].time||"")});
@@ -1497,22 +1546,35 @@ function AnalyticsPage({sales,fmt,fmtFC,onReset,onEditInvoice}){
       <Kpi icon={Ic.receipt({size:16})} label="Remise accordée" value={fmt(totalRemise)} sub={invoicesWithRemise>0?`sur ${invoicesWithRemise} facture${invoicesWithRemise!==1?"s":""} (≥ 100 000 FC)`:"Aucune remise sur la période"} accent={{bg:'#FCEEEE',fg:'#B45454'}}/>
     </div>
 
-    <div className="an-row">
-      <div className="chart-card">
-        <div className="card-h">
-          <div><h3>Revenus quotidiens</h3><span className="card-sub">Survolez le graphique pour le détail journalier</span></div>
-          <div className="card-pill">Net après remises</div>
-        </div>
-        <LineChart data={chartData} fmt={fmt}/>
+    <div className="chart-card" style={{marginBottom:14}}>
+      <div className="card-h">
+        <div><h3>Revenus quotidiens</h3><span className="card-sub">Survolez le graphique pour le détail journalier</span></div>
+        <div className="card-pill">Net après remises</div>
       </div>
+      <LineChart data={chartData} fmt={fmt}/>
+    </div>
+    <div className="top-row">
       <div className="top-card">
-        <div className="card-h"><div><h3>Top 5 médicaments</h3><span className="card-sub">Classement par quantité vendue</span></div></div>
+        <div className="card-h"><div><h3>Top 5 · Quantité vendue</h3><span className="card-sub">Classement par nombre d'unités</span></div></div>
         {top5.length===0?<div className="emp" style={{padding:'30px 0'}}><p>Aucune vente sur cette période</p></div>:
           <div className="top-list">{top5.map(([name,data],i)=><div key={name} className="top-item">
             <div className={`top-rank r${i+1}`}>{i+1}</div>
             <div style={{flex:1,minWidth:0}}>
               <div className="top-name">{name}</div>
-              <div className="top-meta">{data.qty} unité{data.qty!==1?"s":""}</div>
+              <div className="top-meta">{fmt(data.revenue)} de revenu</div>
+            </div>
+            <div className="top-rev">{data.qty} u.</div>
+          </div>)}</div>
+        }
+      </div>
+      <div className="top-card">
+        <div className="card-h"><div><h3>Top 5 · Chiffre d'affaires</h3><span className="card-sub">Classement par revenu généré</span></div></div>
+        {top5rev.length===0?<div className="emp" style={{padding:'30px 0'}}><p>Aucune vente sur cette période</p></div>:
+          <div className="top-list">{top5rev.map(([name,data],i)=><div key={name} className="top-item">
+            <div className={`top-rank r${i+1}`}>{i+1}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div className="top-name">{name}</div>
+              <div className="top-meta">{data.qty} unité{data.qty!==1?"s":""} vendue{data.qty!==1?"s":""}</div>
             </div>
             <div className="top-rev">{fmt(data.revenue)}</div>
           </div>)}</div>
