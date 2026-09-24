@@ -354,7 +354,7 @@ thead th{text-align:left;padding:8px 11px;font-size:9px;text-transform:uppercase
 thead th:hover{color:var(--t2)}
 tbody tr{border-bottom:1px solid var(--bd2);transition:.1s}tbody tr:hover{background:#F6FAF8}tbody tr:last-child{border-bottom:none}
 tbody td{padding:8px 11px;vertical-align:middle}
-.dn{font-weight:600;font-size:11.5px}.db{font-size:9.5px;color:var(--t3);font-family:monospace}
+.dn{font-weight:600;font-size:11.5px}.lot-b{display:inline-block;font-size:10px;font-family:monospace;font-weight:600;color:#0F4C2A;background:#E6F4ED;border:1px solid #BFE0CC;padding:1px 6px;border-radius:5px;white-space:nowrap}.qf{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.qf .bt.on{background:var(--ac);color:#fff;border-color:var(--ac)}.db{font-size:9.5px;color:var(--t3);font-family:monospace}
 .ct{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500;background:var(--al);color:var(--ac)}
 .sb-stock{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
 .sb-stock.ok{background:var(--ok-bg);color:#065F46}.sb-stock.low{background:var(--w-bg);color:#92400E}.sb-stock.crit{background:var(--d-bg);color:#991B1B}
@@ -507,6 +507,7 @@ const PERMS=[
   {k:"dashboard",label:"Tableau de bord"},
   {k:"inventory",label:"Inventaire (voir & modifier)"},
   {k:"cart",label:"Panier & ventes"},
+  {k:"devis",label:"Devis en attente"},
   {k:"sales",label:"Analytique des ventes"},
   {k:"alerts",label:"Alertes & expiration"},
   {k:"clients",label:"Clients & CRM"},
@@ -516,7 +517,7 @@ const PERMS=[
   {k:"team",label:"Gestion de l'équipe"},
 ];
 const ALL_PERMS=()=>Object.fromEntries(PERMS.map(p=>[p.k,true]));
-const MEMBER_DEFAULT_PERMS=()=>({dashboard:true,inventory:true,cart:true,sales:false,alerts:true,clients:true,ruptures:true,commandes:true,data:false,team:false});
+const MEMBER_DEFAULT_PERMS=()=>({dashboard:true,inventory:true,cart:true,devis:true,sales:false,alerts:true,clients:true,ruptures:true,commandes:true,data:false,team:false});
 const can=(perms,key)=>!perms||perms[key]===undefined||perms[key]===true;
 
 /* ═══════ WORKSPACE SETUP ═══════ */
@@ -660,6 +661,8 @@ function DashApp({session,onLogout}){
   const[search,setSearch]=useState("");const[toast,setToast]=useState(null);const[modal,setModal]=useState(null);
   const[loading,setLoading]=useState(true);const[showTour,setShowTour]=useState(false);
   const[cart,setCart]=useState([]);const[showCart,setShowCart]=useState(false);const[invoice,setInvoice]=useState(null);const[editInvoice,setEditInvoice]=useState(null);
+  const[quotes,setQuotes]=useState([]);const[activeQuote,setActiveQuote]=useState(null);const[quotesLocal,setQuotesLocal]=useState(false);
+  const quotesLocalRef=useRef(false);
   const[currency,setCurrency]=useState(()=>localStorage.getItem("sp_currency")||"USD");
   const[workspace,setWorkspace]=useState(null);const[members,setMembers]=useState([]);
   const[sfOrders,setSfOrders]=useState([]);
@@ -731,6 +734,93 @@ function DashApp({session,onLogout}){
   const normDrug=d=>({...d,price:d.price_fc!=null?d.price_fc/FC_RATE:d.price,cost_price:d.cost_fc!=null?d.cost_fc/FC_RATE:d.cost_price});
   const rlD=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("drugs").select("*").or(f).order("name");setDrugs((data||[]).map(normDrug))};
   const rlS=async()=>{const ws=workspaceRef.current;if(!ws)return;const f=`workspace_id.eq.${ws.id},user_id.eq.${uid}`;const{data}=await supabase.from("sales").select("*").or(f).order("created_at",{ascending:false});setSales(data||[])};
+  // Supabase "column/table not there yet" detection (migration not run) → graceful fallbacks.
+  const isMissingCol=e=>!!e&&(e.code==="PGRST204"||e.code==="42703"||/column/i.test(e.message||""));
+  const isMissingTable=e=>!!e&&(e.code==="42P01"||e.code==="PGRST205"||/relation|schema cache|does not exist/i.test(e.message||""));
+  // Insert sales rows; retry without batch, then without invoice/customer columns, for older databases.
+  const insertSales=async rows=>{
+    let{error}=await supabase.from("sales").insert(rows);
+    if(isMissingCol(error))({error}=await supabase.from("sales").insert(rows.map(({batch,...r})=>r)));
+    if(isMissingCol(error))({error}=await supabase.from("sales").insert(rows.map(({batch,invoice_number,customer_name,...r})=>r)));
+    return error;
+  };
+
+  // ── Pending quotes (devis en attente) ── stored in the "quotes" table; falls back to
+  // this device's localStorage until supabase_batch_and_quotes_migration.sql has been run.
+  const qKey=()=>`sp_quotes_${workspaceRef.current?.id||uid}`;
+  const readLocalQ=()=>{try{return JSON.parse(localStorage.getItem(qKey())||"[]")}catch{return[]}};
+  const writeLocalQ=list=>{try{localStorage.setItem(qKey(),JSON.stringify(list))}catch{}};
+  const setLocalQMode=on=>{quotesLocalRef.current=on;setQuotesLocal(on)};
+  const rlQ=async()=>{
+    const ws=workspaceRef.current;if(!ws)return;
+    const{data,error}=await supabase.from("quotes").select("*").or(`workspace_id.eq.${ws.id},user_id.eq.${uid}`).order("created_at",{ascending:false}).limit(500);
+    if(error){setLocalQMode(true);setQuotes(readLocalQ());return}
+    setLocalQMode(false);
+    // Table exists now: move any quotes saved on this device while it didn't.
+    const local=readLocalQ();
+    if(local.length){
+      const{error:eUp}=await supabase.from("quotes").insert(local.map(({id,...q})=>q));
+      if(!eUp){writeLocalQ([]);return rlQ()}
+    }
+    setQuotes(data||[]);
+  };
+  // Insert (no id) or patch (id) a quote. Returns the saved quote, or null on error.
+  const saveQuote=async(rec,id)=>{
+    const local=quotesLocalRef.current||String(id||"").startsWith("local-");
+    if(!local){
+      const{data,error}=id
+        ?await supabase.from("quotes").update(rec).eq("id",id).select().single()
+        :await supabase.from("quotes").insert(rec).select().single();
+      if(!error){await rlQ();return data}
+      if(!isMissingTable(error)){t2("Erreur: "+error.message,"er");return null}
+      setLocalQMode(true);
+    }
+    const list=readLocalQ();
+    let saved;
+    const next=id&&list.some(q=>q.id===id)
+      ?list.map(q=>q.id===id?(saved={...q,...rec}):q)
+      :[(saved={id:`local-${Date.now()}`,created_at:new Date().toISOString(),status:"pending",...rec}),...list];
+    writeLocalQ(next);setQuotes(next);return saved;
+  };
+  const quoteToInvoice=q=>{
+    const items=(q.items||[]).map(i=>({drug_name:i.drug_name,batch:i.batch||"",qty:Number(i.qty),unit_price:Number(i.unit_price),total:Number(i.unit_price)*Number(i.qty)}));
+    const subtotal=items.reduce((s,i)=>s+i.total,0);const rem=remiseInfo(subtotal);
+    return{number:q.number,date:(q.created_at||"").slice(0,10)||today(),customer:q.customer_name||"",items,subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:true,quoteId:q.id};
+  };
+  // Load a pending quote back into the cart (current stock, quoted prices) so it can be sold.
+  const hResumeQuote=q=>{
+    if(!q||q.status!=="pending")return;
+    if(cart.length&&activeQuote?.id!==q.id&&!window.confirm("Le panier contient déjà des articles. Les remplacer par ce devis ?"))return;
+    const items=[],missing=[],reduced=[];
+    for(const it of q.items||[]){
+      const d=drugs.find(x=>x.id===it.drug_id);
+      if(!d||d.stock<=0){missing.push(it.drug_name);continue}
+      const want=Math.max(1,Number(it.qty)||1);const qty=Math.min(want,d.stock);
+      if(qty<want)reduced.push(`${it.drug_name} (${qty}/${want})`);
+      const price=Number(it.unit_price);
+      items.push({drug:{...d,price:price>0?price:d.price},qty});
+    }
+    if(!items.length){t2("Aucun article de ce devis n'est disponible en stock","er");return}
+    setCart(items);setActiveQuote(q);setInvoice(null);setShowCart(true);
+    const warn=[missing.length?`indisponible : ${missing.join(", ")}`:"",reduced.length?`stock insuffisant : ${reduced.join(", ")}`:""].filter(Boolean).join(" · ");
+    if(warn)t2(`Attention — ${warn}`,"er");else t2(`Devis ${q.number} chargé dans le panier`);
+  };
+  const hCancelQuote=async q=>{
+    if(!window.confirm(`Annuler le devis ${q.number}${q.customer_name?` (${q.customer_name})`:""} ?`))return;
+    if(await saveQuote({status:"cancelled"},q.id)){if(activeQuote?.id===q.id)setActiveQuote(null);t2(`Devis ${q.number} annulé`,"er")}
+  };
+  const hDeleteQuote=async q=>{
+    if(!window.confirm(`Supprimer définitivement le devis ${q.number} ?`))return;
+    if(quotesLocalRef.current||String(q.id).startsWith("local-")){const next=readLocalQ().filter(x=>x.id!==q.id);writeLocalQ(next);setQuotes(next)}
+    else{const{error}=await supabase.from("quotes").delete().eq("id",q.id);if(error){t2("Erreur: "+error.message,"er");return}await rlQ()}
+    t2("Devis supprimé","er");
+  };
+  useEffect(()=>{if(workspace)rlQ();
+    // eslint-disable-next-line
+  },[workspace?.id]);
+  // A resumed quote only stays attached while its items are in the cart.
+  useEffect(()=>{if(!cart.length&&activeQuote)setActiveQuote(null)},[cart.length,activeQuote]);
+
   const loadMembers=async()=>{const ws=workspaceRef.current;if(!ws)return;const{data}=await supabase.from("workspace_members").select("*").eq("workspace_id",ws.id).order("invited_at");setMembers(data||[])};
 
   const addToCart=(drug,qtyToAdd=1)=>{
@@ -740,8 +830,9 @@ function DashApp({session,onLogout}){
     t2(add>1?`${add} × ${drug.name} ajoutés au panier`:`${drug.name} ajouté au panier`);
   };
 
-  const hAdd=async(drug)=>{const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;const{error}=await supabase.from("drugs").insert({...drug,user_id:uid,workspace_id:wsId});if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(`${drug.name} ajouté`);setModal(null)};
-  const hEdit=async(drug)=>{const{id,user_id,created_at,updated_at,...rest}=drug;const{error}=await supabase.from("drugs").update({...rest,updated_at:new Date().toISOString()}).eq("id",id);if(error){t2("Erreur","er");return}await rlD();t2(`${drug.name} modifié`);setModal(null)};
+  const noBatchMsg="lot non enregistré : exécutez la migration SQL des lots";
+  const hAdd=async(drug)=>{const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;const row={...drug,user_id:uid,workspace_id:wsId};let{error}=await supabase.from("drugs").insert(row);let noBatch=false;if(isMissingCol(error)&&row.batch!==undefined){noBatch=true;const{batch,...r}=row;({error}=await supabase.from("drugs").insert(r))}if(error){t2("Erreur: "+error.message,"er");return}await rlD();t2(noBatch&&drug.batch?`${drug.name} ajouté — ${noBatchMsg}`:`${drug.name} ajouté${drug.batch?` (lot ${drug.batch})`:""}`,noBatch&&drug.batch?"er":"ok");setModal(null)};
+  const hEdit=async(drug)=>{const{id,user_id,created_at,updated_at,...rest}=drug;const patch={...rest,updated_at:new Date().toISOString()};let{error}=await supabase.from("drugs").update(patch).eq("id",id);let noBatch=false;if(isMissingCol(error)&&patch.batch!==undefined){noBatch=true;const{batch,...r}=patch;({error}=await supabase.from("drugs").update(r).eq("id",id))}if(error){t2("Erreur","er");return}await rlD();t2(noBatch&&drug.batch?`${drug.name} modifié — ${noBatchMsg}`:`${drug.name} modifié`,noBatch&&drug.batch?"er":"ok");setModal(null)};
   const hDel=async(id)=>{const d=drugs.find(x=>x.id===id);if(!window.confirm(`Supprimer "${d?.name}" ?`))return;await supabase.from("sales").delete().eq("drug_id",id);await supabase.from("drugs").delete().eq("id",id);await rlD();await rlS();t2(`${d?.name} supprimé`,"er")};
   const hRes=async(did,qty)=>{const d=drugs.find(x=>x.id===did);if(!d||qty<1)return;const{error}=await supabase.from("drugs").update({stock:d.stock+qty}).eq("id",did);if(error){t2("Erreur","er");return}await rlD();t2(`+${qty} ${d.name}`);setModal(null)};
 
@@ -759,13 +850,9 @@ function DashApp({session,onLogout}){
       user_id:uid,workspace_id:wsId,drug_id:item.drug.id,drug_name:item.drug.name,
       qty:item.qty,unit_price:item.drug.price,total:item.qty*item.drug.price*factor,
       sale_date:today(),sale_time:new Date().toLocaleTimeString(),
-      invoice_number:invNum,customer_name:customerName||null,
+      invoice_number:invNum,customer_name:customerName||null,batch:item.drug.batch||null,
     }));
-    let{error}=await supabase.from("sales").insert(salesData);
-    if(error&&(error.message.includes("column")||error.code==="PGRST204")){
-      const basic=salesData.map(({invoice_number,customer_name,...r})=>r);
-      const res=await supabase.from("sales").insert(basic);error=res.error;
-    }
+    const error=await insertSales(salesData);
     if(error){t2("Erreur: "+error.message,"er");return}
     for(const item of cartItems){const d=drugs.find(x=>x.id===item.drug.id);if(d)await supabase.from("drugs").update({stock:d.stock-item.qty}).eq("id",item.drug.id)}
     await rlD();await rlS();
@@ -775,28 +862,38 @@ function DashApp({session,onLogout}){
       const merged={...prev,phone:customerPhone||prev.phone||"",address:customerAddress||prev.address||"",notes:customerNotes||prev.notes||""};
       saveClientExtra({...clientExtra,[key]:merged});
     }
+    const fromQuote=activeQuote;
+    if(fromQuote)await saveQuote({status:"converted",invoice_number:invNum,converted_at:new Date().toISOString()},fromQuote.id);
     setInvoice({
       number:invNum,date:today(),customer:customerName,
-      items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),
+      items:cartItems.map(i=>({drug_name:i.drug.name,batch:i.drug.batch||"",qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),
       subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:false,
     });
-    setCart([]);setShowCart(false);
-    t2(`Vente confirmée · ${fmt(rem.final)}`);
+    setCart([]);setShowCart(false);setActiveQuote(null);
+    t2(fromQuote?`Devis ${fromQuote.number} encaissé · ${fmt(rem.final)}`:`Vente confirmée · ${fmt(rem.final)}`);
   };
 
-  const hGenerateQuote=(cartItems,customerInfo)=>{
+  // Generate a quote and save it as "en attente" so the customer can pay later; the cart
+  // is emptied so the next customer in line can be served. Re-generating a resumed quote updates it.
+  const hGenerateQuote=async(cartItems,customerInfo)=>{
     if(!cartItems.length)return;
-    const customerName=customerInfo?.name||"";
+    const customerName=(customerInfo?.name||"").trim();
     const subtotal=cartItems.reduce((s,i)=>s+i.drug.price*i.qty,0);
     const rem=remiseInfo(subtotal);
-    const quoteNum=`DEVIS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-    setInvoice({
-      number:quoteNum,date:today(),customer:customerName,
-      items:cartItems.map(i=>({drug_name:i.drug.name,qty:i.qty,unit_price:i.drug.price,total:i.drug.price*i.qty})),
-      subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:true,
-    });
-    setShowCart(false);
-    t2("Devis généré (aucune vente enregistrée)");
+    const ws=workspaceRef.current;const wsId=ws?.id&&ws.id!==uid?ws.id:null;
+    const existing=activeQuote;
+    const quoteNum=existing?.number||`DEVIS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const rec={
+      number:quoteNum,customer_name:customerName||null,
+      customer:{phone:customerInfo?.phone||"",address:customerInfo?.address||"",notes:customerInfo?.notes||""},
+      items:cartItems.map(i=>({drug_id:i.drug.id,drug_name:i.drug.name,batch:i.drug.batch||"",qty:i.qty,unit_price:i.drug.price})),
+      total:rem.final,status:"pending",
+    };
+    const saved=await saveQuote(existing?rec:{...rec,user_id:uid,workspace_id:wsId},existing?.id);
+    if(!saved)return;
+    setInvoice(quoteToInvoice(saved));
+    setCart([]);setShowCart(false);setActiveQuote(null);
+    t2(`Devis ${quoteNum} ${existing?"mis à jour":"mis en attente"} — retrouvez-le dans « Devis en attente »`);
   };
 
   // Save edits to an existing invoice: adjust stock by the qty delta per line,
@@ -834,11 +931,8 @@ function DashApp({session,onLogout}){
         }else{
           // New medicine added to the invoice → decrement its stock and insert a sale row.
           if(it.drug_id){const d=drugs.find(x=>x.id===it.drug_id);if(d)await supabase.from("drugs").update({stock:Math.max(0,d.stock-it.qty)}).eq("id",it.drug_id);}
-          const row={user_id:uid,workspace_id:wsId,drug_id:it.drug_id,drug_name:it.drug_name,qty:it.qty,unit_price:it.unit_price,total:it.unit_price*it.qty*factor,sale_date:editInvoice.date||today(),sale_time:editInvoice.time||new Date().toLocaleTimeString(),invoice_number:editInvoice.number,customer_name:custName};
-          let{error}=await supabase.from("sales").insert(row);
-          if(error&&(error.message.includes("column")||error.code==="PGRST204")){
-            const{invoice_number,customer_name,...basic}=row;const res=await supabase.from("sales").insert(basic);error=res.error;
-          }
+          const row={user_id:uid,workspace_id:wsId,drug_id:it.drug_id,drug_name:it.drug_name,qty:it.qty,unit_price:it.unit_price,total:it.unit_price*it.qty*factor,sale_date:editInvoice.date||today(),sale_time:editInvoice.time||new Date().toLocaleTimeString(),invoice_number:editInvoice.number,customer_name:custName,batch:it.batch||null};
+          const error=await insertSales([row]);
           if(error){t2("Erreur: "+error.message,"er");return;}
         }
       }
@@ -848,7 +942,7 @@ function DashApp({session,onLogout}){
       if(print){
         setInvoice({
           number:editInvoice.number,date:editInvoice.date,customer:custName||"",
-          items:clean.map(i=>({drug_name:i.drug_name,qty:i.qty,unit_price:i.unit_price,total:i.unit_price*i.qty})),
+          items:clean.map(i=>({drug_name:i.drug_name,batch:i.batch||"",qty:i.qty,unit_price:i.unit_price,total:i.unit_price*i.qty})),
           subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:false,
         });
       }
@@ -909,7 +1003,8 @@ function DashApp({session,onLogout}){
       const col=(...terms)=>h.findIndex(s=>terms.some(t=>s.includes(t)));
       const ni=col("nom","name","drug","medic","produit","article","designation","libelle");
       if(ni===-1)throw new Error(`Colonne "Nom" introuvable. En-têtes détectés : ${parseLine(first).slice(0,8).join(" | ")}`);
-      const bi=col("barcode","codebarre","code","ean","ref");
+      const li=col("lot","batch");
+      const bi=h.findIndex((s,i)=>i!==li&&["barcode","codebarre","code","ean","ref"].some(t=>s.includes(t)));
       const ci=col("categor","cat","type","famille","classe");
       const si=col("stock","qte","qty","quantit","nombre");
       const pi=col("prix","price","pv","ventepu","pu","tarif");
@@ -929,6 +1024,7 @@ function DashApp({session,onLogout}){
         imp.push({
           user_id:uid,workspace_id:wsId,name,
           barcode:bi>=0?unquote(c[bi]):"",
+          ...(li>=0?{batch:unquote(c[li])||null}:{}),
           category:ci>=0?unquote(c[ci])||"Général":"Général",
           stock:si>=0?parseInt(unquote(c[si]))||0:0,
           price:priceFc/FC_RATE,
@@ -941,23 +1037,26 @@ function DashApp({session,onLogout}){
         });
       }
       if(!imp.length)throw new Error("Aucune ligne valide trouvée dans le fichier");
-      // Upsert: rows matching an existing drug by barcode (or by name if no barcode) UPDATE instead of duplicating.
-      const{data:existing}=await supabase.from("drugs").select("id,name,barcode")
+      // Upsert: rows matching an existing drug by barcode (or by name if no barcode) AND the same lot
+      // UPDATE instead of duplicating — a different lot of the same medicine is its own row.
+      const{data:existing}=await supabase.from("drugs").select("*")
         .or(wsId?`workspace_id.eq.${wsId},user_id.eq.${uid}`:`user_id.eq.${uid}`);
+      const lotK=b=>(b||"").trim().toLowerCase();
       const byBarcode=new Map(),byName=new Map();
-      (existing||[]).forEach(d=>{if(d.barcode)byBarcode.set(d.barcode.trim(),d.id);if(d.name)byName.set(d.name.trim().toLowerCase(),d.id)});
+      (existing||[]).forEach(d=>{if(d.barcode)byBarcode.set(d.barcode.trim()+"|"+lotK(d.batch),d.id);if(d.name)byName.set(d.name.trim().toLowerCase()+"|"+lotK(d.batch),d.id)});
       const toInsert=[],toUpdate=[];
       for(const row of imp){
-        const hit=(row.barcode&&byBarcode.get(row.barcode.trim()))||byName.get(row.name.trim().toLowerCase());
+        const hit=(row.barcode&&byBarcode.get(row.barcode.trim()+"|"+lotK(row.batch)))||byName.get(row.name.trim().toLowerCase()+"|"+lotK(row.batch));
         if(hit){const{user_id,workspace_id,...rest}=row;toUpdate.push({id:hit,...rest})}
         else toInsert.push(row);
       }
-      if(toInsert.length){const{error:eIns}=await supabase.from("drugs").insert(toInsert);if(eIns)throw eIns}
-      for(const u of toUpdate){const{id,...rest}=u;const{error:eUp}=await supabase.from("drugs").update(rest).eq("id",id);if(eUp)throw eUp}
+      const noLot=({batch,...r})=>r;
+      if(toInsert.length){let{error:eIns}=await supabase.from("drugs").insert(toInsert);if(isMissingCol(eIns)&&li>=0)({error:eIns}=await supabase.from("drugs").insert(toInsert.map(noLot)));if(eIns)throw eIns}
+      for(const u of toUpdate){const{id,...rest}=u;let{error:eUp}=await supabase.from("drugs").update(rest).eq("id",id);if(isMissingCol(eUp)&&li>=0)({error:eUp}=await supabase.from("drugs").update(noLot(rest)).eq("id",id));if(eUp)throw eUp}
       await rlD();t2(`${toInsert.length} ajouté(s), ${toUpdate.length} mis à jour`);setModal(null);
     }catch(e){t2(e.message,"er")}
   };
-  const expCSV=()=>{const hdr="Nom,Code-barres,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
+  const expCSV=()=>{const hdr="Nom,Code-barres,Lot,Catégorie,Stock,Prix,Coût,Expiration,Fournisseur,Stock Min";const rows=drugs.map(d=>[d.name,d.barcode,d.batch||"",d.category,d.stock,d.price,d.cost_price,d.expiry_date||"",d.supplier,d.min_stock].join(","));const blob=new Blob([hdr+"\n"+rows.join("\n")],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`speranza_${today()}.csv`;a.click();t2("CSV exporté")};
 
   const hClearAll=async()=>{
     if(!window.confirm("Supprimer tous les médicaments de l'inventaire ? Cette action est irréversible."))return;
@@ -1009,21 +1108,22 @@ function DashApp({session,onLogout}){
   const ex=drugs.filter(d=>{const s=expSt(d.expiry_date);return s==="critical"||s==="expired"});
   const wrn=drugs.filter(d=>expSt(d.expiry_date)==="warning");const ac=low.length+out.length+ex.length+ruptures.length;
   const tsl=sales.filter(s=>s.sale_date===today()),tr=tsl.reduce((s,sl)=>s+Number(sl.total),0);
-  const flt=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.barcode&&d.barcode.includes(q))||(d.category&&d.category.toLowerCase().includes(q))});
+  const flt=drugs.filter(d=>{const q=search.toLowerCase();return d.name.toLowerCase().includes(q)||(d.barcode&&d.barcode.includes(q))||(d.batch&&d.batch.toLowerCase().includes(q))||(d.category&&d.category.toLowerCase().includes(q))});
   const cartCount=cart.reduce((s,i)=>s+i.qty,0);
   const pendingOrders=sfOrders.filter(o=>o.status==="pending").length;
+  const pendingQuotes=quotes.filter(q=>q.status==="pending").length;
   const storeUrl=workspace?`${window.location.origin}/store/${workspace.id}`:null;
 
   const isOwner=workspace?.owner_id===uid;
   const myMember=members.find(m=>m.user_id===uid);
   const myPerms=isOwner?ALL_PERMS():(myMember?.permissions||MEMBER_DEFAULT_PERMS());
   const allowed=(k)=>can(myPerms,k);
-  const navAll=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Demandes",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
+  const navAll=[{id:"dashboard",label:"Tableau de bord",icon:Ic.home},{id:"inventory",label:"Inventaire",icon:Ic.box},{id:"devis",label:"Devis en attente",icon:Ic.receipt,badge:pendingQuotes||null},{id:"sales",label:"Analytique",icon:Ic.bar},{id:"alerts",label:"Alertes",icon:Ic.alert,badge:ac||null},{id:"clients",label:"Clients",icon:Ic.users},{id:"ruptures",label:"Demandes",icon:Ic.clipboard,badge:ruptures.length||null},{id:"commandes",label:"Commandes",icon:Ic.pkg,badge:pendingOrders||null},{id:"team",label:"Équipe",icon:Ic.users}];
   const nav=navAll.filter(n=>allowed(n.id));
   useEffect(()=>{if(nav.length&&!nav.find(n=>n.id===page))setPage(nav[0].id);
     // eslint-disable-next-line
   },[nav.map(n=>n.id).join(",")]);
-  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Demandes de médicaments",commandes:"Commandes vitrine",team:"Équipe & Accès"};
+  const titles={dashboard:"Tableau de bord",inventory:"Inventaire des médicaments",devis:"Devis en attente",sales:"Analytique des ventes",alerts:"Alertes & Expiration",clients:"Clients & CRM",ruptures:"Demandes de médicaments",commandes:"Commandes vitrine",team:"Équipe & Accès"};
 
   if(loading)return(<><style>{DCSS}</style><div className="ld-ov"><div className="spin"/><p style={{marginTop:12,color:'#4A6B5A',fontSize:12}}>Chargement...</p></div></>);
 
@@ -1063,7 +1163,8 @@ function DashApp({session,onLogout}){
       </header>
       <div className="cnt">
         {page==="dashboard"&&<><div className="stats"><div className="stc"><div className="sti g">{Ic.pill({size:15})}</div><div className="stv"><div className="l">Médicaments</div><div className="v">{tD}</div></div></div><div className="stc"><div className="sti gn">{Ic.box({size:15})}</div><div className="stv"><div className="l">Stock total</div><div className="v">{tS.toLocaleString()}</div></div></div><div className="stc"><div className="sti am">{Ic.alert({size:15})}</div><div className="stv"><div className="l">Alertes</div><div className="v">{ac}</div></div></div><div className="stc"><div className="sti g">{Ic.cart({size:15})}</div><div className="stv"><div className="l">Ventes du jour</div><div className="v">{tsl.length}<span style={{fontSize:10,fontWeight:400,color:'var(--t3)'}}> ({fmt(tr)})</span></div></div></div></div><DT drugs={flt} fmt={fmt} onAddToCart={addToCart} compact/></>}
-        {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
+        {page==="inventory"&&<DT drugs={flt} fmt={fmt} onAddToCart={addToCart} onNewBatch={d=>setModal({type:"batch",drug:d})} onEdit={d=>setModal({type:"edit",drug:d})} onRes={d=>setModal({type:"restock",drug:d})} onDel={hDel}/>}
+        {page==="devis"&&<QuotesPage quotes={quotes} fmt={fmtFC} localMode={quotesLocal} activeId={activeQuote?.id} onView={q=>setInvoice(quoteToInvoice(q))} onResume={hResumeQuote} onCancel={hCancelQuote} onDelete={hDeleteQuote}/>}
         {page==="sales"&&<AnalyticsPage sales={sales} fmt={fmt} fmtFC={fmtFC} onReset={allowed("data")?hClearAnalytics:null} onEditInvoice={(inv,g)=>setEditInvoice({number:inv,...g})}/>}
         {page==="alerts"&&<AP low={low} out={out} exp={ex} warn={wrn} onRes={d=>setModal({type:"restock",drug:d})}/>}
         {page==="clients"&&<ClientsPage sales={sales} sfOrders={sfOrders} fmt={fmt} clientExtra={clientExtra} onSaveExtra={saveClientExtra}/>}
@@ -1074,11 +1175,13 @@ function DashApp({session,onLogout}){
     </main>
     {modal?.type==="add"&&<DF title="Ajouter un médicament" onClose={()=>setModal(null)} onSave={hAdd}/>}
     {modal?.type==="edit"&&<DF title="Modifier" drug={modal.drug} onClose={()=>setModal(null)} onSave={hEdit}/>}
+    {modal?.type==="batch"&&<DF title={`Nouveau lot — ${modal.drug.name}`} template={modal.drug} onClose={()=>setModal(null)} onSave={hAdd}/>}
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
     {modal?.type==="inviteLink"&&<InviteLinkModal link={modal.link} email={modal.email} workspace={modal.workspace} onClose={()=>setModal(null)} onToast={t2}/>}
-    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra}/>}
-    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} onEdit={()=>openEditFromInvoice(invoice)} fmt={fmtFC}/>}
+    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra} activeQuote={activeQuote} onDetachQuote={()=>setActiveQuote(null)}/>}
+    {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} onEdit={()=>openEditFromInvoice(invoice)} fmt={fmtFC}
+      onCheckout={invoice.quoteId&&quotes.some(q=>q.id===invoice.quoteId&&q.status==="pending")?()=>hResumeQuote(quotes.find(q=>q.id===invoice.quoteId)):null}/>}
     {editInvoice&&<InvoiceEditModal group={editInvoice} drugs={drugs} onSave={hSaveInvoice} onClose={()=>setEditInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
@@ -1086,20 +1189,21 @@ function DashApp({session,onLogout}){
 }
 
 /* ═══════ DRUG TABLE ═══════ */
-function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
+function DT({drugs,fmt,onAddToCart,onNewBatch,onEdit,onRes,onDel,compact}){
   const[sk,setSk]=useState("name");const[sd,setSd]=useState(1);
   const[qtyMap,setQtyMap]=useState({});
   const rowQty=id=>{const v=qtyMap[id];return v===undefined?1:v;};
   const setRowQty=(id,v)=>setQtyMap(m=>({...m,[id]:v}));
   const handleAdd=d=>{const q=Math.max(1,parseInt(qtyMap[d.id],10)||1);onAddToCart(d,Math.min(q,d.stock));setRowQty(d.id,1);};
   const sort=k=>{if(sk===k)setSd(-sd);else{setSk(k);setSd(1)}};
-  const sorted=[...drugs].sort((a,b)=>{let va=a[sk],vb=b[sk];if(typeof va==="string"){va=(va||"").toLowerCase();vb=(vb||"").toLowerCase()}return va<vb?-sd:va>vb?sd:0});
+  const sorted=[...drugs].sort((a,b)=>{let va=a[sk],vb=b[sk];if(typeof va==="string"){va=(va||"").toLowerCase();vb=(vb||"").toLowerCase()}if(va<vb)return -sd;if(va>vb)return sd;return(a.name||"").localeCompare(b.name||"","fr",{sensitivity:"base"})||(a.batch||"").localeCompare(b.batch||"","fr",{numeric:true})});
   const SA=({col})=>sk===col?<span style={{marginLeft:2,fontSize:8}}>{sd===1?"▲":"▼"}</span>:null;
   return(<div className="tc"><div className="th2"><h3>Inventaire</h3><span style={{fontSize:10,color:'var(--t3)'}}>{drugs.length} articles</span></div>
     {!drugs.length?<div className="emp">{Ic.pill({size:28,color:'var(--t3)'})}<p>Aucun médicament trouvé.</p></div>:
     <div className="ts"><table><thead><tr>
       <th onClick={()=>sort("name")}>Nom<SA col="name"/></th>
       <th onClick={()=>sort("barcode")}>Code<SA col="barcode"/></th>
+      <th onClick={()=>sort("batch")}>Lot<SA col="batch"/></th>
       <th onClick={()=>sort("category")}>Catégorie<SA col="category"/></th>
       <th onClick={()=>sort("stock")}>Stock<SA col="stock"/></th>
       <th onClick={()=>sort("price")}>Prix<SA col="price"/></th>
@@ -1111,6 +1215,7 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
       return(<tr key={d.id}>
         <td><div className="dn">{d.name}</div>{d.supplier&&<div style={{fontSize:9,color:'var(--t3)'}}>{d.supplier}</div>}</td>
         <td><span className="db">{d.barcode||"—"}</span></td>
+        <td>{d.batch?<span className="lot-b">{d.batch}</span>:<span style={{color:'var(--t3)'}}>—</span>}</td>
         <td><span className="ct">{d.category||"Général"}</span></td>
         <td><span className={`sb-stock ${ss}`}>{d.stock===0?"Épuisé":d.stock}</span></td>
         <td style={{fontWeight:500}}>{fmt(d.price)}</td>
@@ -1127,6 +1232,7 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
           </div>
           {!compact&&<>
             <button className="bt bt-g bt-sm" onClick={()=>onRes(d)} title="Réappro.">{Ic.plus({size:12})}</button>
+            {onNewBatch&&<button className="bt bt-g bt-sm" onClick={()=>onNewBatch(d)} title="Ajouter un nouveau lot de ce médicament">{Ic.copy({size:12})}</button>}
             <button className="bt bt-g bt-sm" onClick={()=>onEdit(d)} title="Modifier">{Ic.edit({size:12})}</button>
             <button className="bt bt-g bt-sm" onClick={()=>onDel(d.id)} style={{color:'var(--d)'}} title="Supprimer">{Ic.trash({size:12})}</button>
           </>}
@@ -1137,11 +1243,11 @@ function DT({drugs,fmt,onAddToCart,onEdit,onRes,onDel,compact}){
 }
 
 /* ═══════ CART MODAL ═══════ */
-function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
-  const[customer,setCustomer]=useState("");
-  const[phone,setPhone]=useState("");
-  const[address,setAddress]=useState("");
-  const[notes,setNotes]=useState("");
+function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={},activeQuote,onDetachQuote}){
+  const[customer,setCustomer]=useState(activeQuote?.customer_name||"");
+  const[phone,setPhone]=useState(activeQuote?.customer?.phone||"");
+  const[address,setAddress]=useState(activeQuote?.customer?.address||"");
+  const[notes,setNotes]=useState(activeQuote?.customer?.notes||"");
   const[submitting,setSubmitting]=useState(false);
   const[qtyBuf,setQtyBuf]=useState({});
   const onQtyChange=(key,stock,raw)=>{
@@ -1177,7 +1283,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
   const subtotal=cart.reduce((s,i)=>s+i.drug.price*i.qty,0);
   const rem=remiseInfo(subtotal);
   const totalQty=cart.reduce((s,i)=>s+i.qty,0);
-  const sortedCart=[...cart].sort((a,b)=>(a.drug.name||"").localeCompare(b.drug.name||"","fr",{sensitivity:"base"}));
+  const sortedCart=[...cart].sort((a,b)=>(a.drug.name||"").localeCompare(b.drug.name||"","fr",{sensitivity:"base"})||(a.drug.batch||"").localeCompare(b.drug.batch||"","fr",{numeric:true}));
   const handleQuote=()=>{if(cart.length===0||!onQuote)return;onQuote(cart,{name:customer,phone,address,notes})};
   return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()} style={{width:'min(860px,94vw)',maxHeight:'92vh'}}>
     <div className="mo-h" style={{borderBottom:'1px solid var(--bd)',paddingBottom:14}}>
@@ -1187,6 +1293,10 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
       <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
     </div>
     <div className="mo-b" style={{maxHeight:'65vh',overflowY:'auto'}}>
+      {activeQuote&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,background:'#FFF4E5',border:'1px solid #FFB960',color:'#7A4B00',borderRadius:8,padding:'9px 12px',marginBottom:12,fontSize:12}}>
+        <span>{Ic.receipt({size:13})} Devis <strong>{activeQuote.number}</strong> repris{activeQuote.customer_name?` — ${activeQuote.customer_name}`:""}. Confirmez la vente pour l'encaisser.</span>
+        {onDetachQuote&&<button className="bt bt-g bt-sm" onClick={onDetachQuote} title="Ne plus lier ce panier au devis">{Ic.x({size:11})}</button>}
+      </div>}
       {cart.length===0
         ?<div className="emp" style={{padding:'48px 0'}}>{Ic.cart({size:36,color:'var(--t3)'})}<p style={{marginTop:14,fontSize:13}}>Le panier est vide.<br/>Ajoutez des médicaments depuis l'inventaire.</p></div>
         :<>
@@ -1195,7 +1305,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
               <div key={key} className="cart-item">
                 <div>
                   <div className="cart-item-name">{item.drug.name}</div>
-                  <div className="cart-item-meta">{fmt(item.drug.price)} / unité · stock : {item.drug.stock}</div>
+                  <div className="cart-item-meta">{item.drug.batch&&<span className="lot-b" style={{marginRight:6}}>Lot {item.drug.batch}</span>}{fmt(item.drug.price)} / unité · stock : {item.drug.stock}</div>
                   {item.drug.category&&<span className="cart-cat-badge">{item.drug.category}</span>}
                 </div>
                 <div className="qty-ctrl">
@@ -1215,7 +1325,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
             <div className="fi" style={{gridColumn:"1 / -1"}}><label>Notes (optionnel)</label><input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Remarques sur la vente…"/></div>
           </div>
           <div className="cart-summary">
-            {sortedCart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
+            {sortedCart.map(item=><div key={dk(item.drug)} className="cart-sum-row"><span>{item.drug.name}{item.drug.batch?` (lot ${item.drug.batch})`:""} ×{item.qty}</span><span>{fmt(item.drug.price*item.qty)}</span></div>)}
             {rem.applies?<>
               <div className="cart-sum-row" style={{fontWeight:600,paddingTop:8,borderTop:'1px dashed var(--bd2)'}}><span>Sous-total</span><span>{fmt(subtotal)}</span></div>
               <div className="cart-sum-row" style={{color:'#0F4C2A',fontWeight:600}}><span>Remise (3%)</span><span>− {fmt(rem.discount)}</span></div>
@@ -1229,8 +1339,8 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
     <div className="mo-f" style={{justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap'}}>
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
       <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-        {onQuote&&<button className="bt bt-s" onClick={handleQuote} disabled={cart.length===0||submitting} title="Génère un devis sans enregistrer la vente">
-          {Ic.receipt({size:13})} Générer un devis
+        {onQuote&&<button className="bt bt-s" onClick={handleQuote} disabled={cart.length===0||submitting} title="Enregistre un devis en attente (sans vente) — le client pourra payer plus tard">
+          {Ic.receipt({size:13})} {activeQuote?"Mettre à jour le devis":"Devis — mettre en attente"}
         </button>}
         <button className="bt bt-ok" onClick={handleConfirm} disabled={cart.length===0||submitting} style={{padding:'10px 22px',fontSize:13,gap:7,opacity:submitting?.6:1}}>
           {Ic.check({size:13})} {submitting?"Traitement…":`Confirmer la vente · ${fmt(rem.final)}`}
@@ -1241,7 +1351,8 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={}}){
 }
 
 /* ═══════ INVOICE MODAL ═══════ */
-function InvoiceModal({invoice,onClose,fmt,onEdit}){
+const sortInvItems=items=>[...(items||[])].sort((a,b)=>(a.drug_name||"").localeCompare(b.drug_name||"","fr",{sensitivity:"base"})||(a.batch||"").localeCompare(b.batch||"","fr",{numeric:true}));
+function InvoiceModal({invoice,onClose,fmt,onEdit,onCheckout}){
   const isQuote=!!invoice.quote;
   const docLabel=isQuote?"Devis":"Facture";
   const subtotal=invoice.subtotal??invoice.total;
@@ -1251,13 +1362,13 @@ function InvoiceModal({invoice,onClose,fmt,onEdit}){
   const printInvoice=()=>{
     const win=window.open("","_blank");
     const fc=n=>fmtAmt(n,"FC");
-    const sortedItems=[...invoice.items].sort((a,b)=>(a.drug_name||"").localeCompare(b.drug_name||"","fr",{sensitivity:"base"}));
-    const rows=sortedItems.map(i=>`<tr><td>${i.drug_name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fc(i.unit_price)}</td><td style="text-align:right">${fc(i.total)}</td></tr>`).join("");
+    const sortedItems=sortInvItems(invoice.items);
+    const rows=sortedItems.map(i=>`<tr><td>${i.drug_name}</td><td>${i.batch||"—"}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fc(i.unit_price)}</td><td style="text-align:right">${fc(i.total)}</td></tr>`).join("");
     const summaryRows=hasRemise?`
-      <tr class="sub-row"><td colspan="3" style="text-align:right">Sous-total</td><td style="text-align:right">${fc(subtotal)}</td></tr>
-      <tr class="rem-row"><td colspan="3" style="text-align:right">Remise (3%)</td><td style="text-align:right">− ${fc(discount)}</td></tr>
-      <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL À PAYER</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`
-      :`<tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`;
+      <tr class="sub-row"><td colspan="4" style="text-align:right">Sous-total</td><td style="text-align:right">${fc(subtotal)}</td></tr>
+      <tr class="rem-row"><td colspan="4" style="text-align:right">Remise (3%)</td><td style="text-align:right">− ${fc(discount)}</td></tr>
+      <tr class="total-row"><td colspan="4" style="text-align:right">TOTAL À PAYER</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`
+      :`<tr class="total-row"><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">${fc(finalTotal)}</td></tr>`;
     const render=(logoSrc)=>{
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${docLabel} ${invoice.number}</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1296,7 +1407,7 @@ tr{page-break-inside:avoid}
   <div class="meta-block"><strong>Date</strong><span>${invoice.date}</span></div>
   <div class="meta-block" style="text-align:right"><strong>Client</strong><span>${invoice.customer||"Client de passage"}</span></div>
 </div>
-<table><thead><tr><th>Médicament</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
+<table><thead><tr><th>Médicament</th><th>Lot</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
 <tbody>${rows}${summaryRows}</tbody></table>
 <div class="footer">${isQuote?'Ce devis est valable 7 jours. Aucun engagement de vente.':'Merci pour votre confiance — Speranza Della Pharma'}<br/>${isQuote?'Présentez ce document pour validation et achat.':'Ce document est une facture officielle'}</div>
 </body></html>`);
@@ -1335,29 +1446,31 @@ tr{page-break-inside:avoid}
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:0}}>
           <thead><tr style={{background:'var(--al)'}}>
             <th style={{padding:'8px 10px',textAlign:'left',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Médicament</th>
+            <th style={{padding:'8px 10px',textAlign:'left',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Lot</th>
             <th style={{padding:'8px 10px',textAlign:'center',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Qté</th>
             <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Prix unit.</th>
             <th style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:11,color:'var(--ac)'}}>Total</th>
           </tr></thead>
           <tbody>
-            {[...invoice.items].sort((a,b)=>(a.drug_name||"").localeCompare(b.drug_name||"","fr",{sensitivity:"base"})).map((item,i)=><tr key={i} style={{borderBottom:'1px solid var(--bd2)'}}>
+            {sortInvItems(invoice.items).map((item,i)=><tr key={i} style={{borderBottom:'1px solid var(--bd2)'}}>
               <td style={{padding:'9px 10px',fontWeight:500}}>{item.drug_name}</td>
+              <td style={{padding:'9px 10px',color:'var(--t2)',fontFamily:'monospace',fontSize:11}}>{item.batch||"—"}</td>
               <td style={{padding:'9px 10px',textAlign:'center',color:'var(--t2)'}}>{item.qty}</td>
               <td style={{padding:'9px 10px',textAlign:'right',color:'var(--t2)'}}>{fmt(item.unit_price)}</td>
               <td style={{padding:'9px 10px',textAlign:'right',fontWeight:700,color:'var(--ok)'}}>{fmt(item.total)}</td>
             </tr>)}
             {hasRemise&&<>
               <tr style={{borderTop:'2px dashed var(--bd2)'}}>
-                <td colSpan={3} style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:12,color:'var(--t2)'}}>Sous-total</td>
+                <td colSpan={4} style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:12,color:'var(--t2)'}}>Sous-total</td>
                 <td style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:13,color:'var(--t2)'}}>{fmt(subtotal)}</td>
               </tr>
               <tr style={{background:'#F4F7F5'}}>
-                <td colSpan={3} style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:12,color:'#0F4C2A'}}>Remise (3%)</td>
+                <td colSpan={4} style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:12,color:'#0F4C2A'}}>Remise (3%)</td>
                 <td style={{padding:'8px 10px',textAlign:'right',fontWeight:600,fontSize:13,color:'#0F4C2A'}}>− {fmt(discount)}</td>
               </tr>
             </>}
             <tr style={{background:'var(--bg)',borderTop:'2px solid var(--ac)'}}>
-              <td colSpan={3} style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:13}}>{hasRemise?'TOTAL À PAYER':'TOTAL'}</td>
+              <td colSpan={4} style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:13}}>{hasRemise?'TOTAL À PAYER':'TOTAL'}</td>
               <td style={{padding:'10px 10px',textAlign:'right',fontWeight:700,fontSize:16,color:'var(--ac)'}}>{fmt(finalTotal)}</td>
             </tr>
           </tbody>
@@ -1369,6 +1482,7 @@ tr{page-break-inside:avoid}
       <button className="bt bt-s" onClick={onClose}>Fermer</button>
       <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
         {onEdit&&!isQuote&&<button className="bt bt-s" onClick={onEdit} style={{gap:7}}>{Ic.edit({size:13})} Modifier / ajouter</button>}
+        {onCheckout&&isQuote&&<button className="bt bt-ok" onClick={onCheckout} style={{gap:7}}>{Ic.cart({size:13})} Encaisser ce devis</button>}
         <button className="bt bt-p" onClick={printInvoice} style={{gap:7}}>{Ic.print({size:13})} {isQuote?'Imprimer le devis':'Imprimer la facture'}</button>
       </div>
     </div>
@@ -1380,6 +1494,7 @@ function InvoiceEditModal({group,onSave,onClose,fmt,drugs=[]}){
   const original=group.items||[];
   const[items,setItems]=useState(()=>original.map(s=>({
     id:s.id,drug_id:s.drug_id,drug_name:s.drug_name,
+    batch:s.batch||drugs.find(d=>d.id===s.drug_id)?.batch||"",
     qty:Number(s.qty),unit_price:Number(s.unit_price),
   })));
   const[removed,setRemoved]=useState([]);
@@ -1392,10 +1507,10 @@ function InvoiceEditModal({group,onSave,onClose,fmt,drugs=[]}){
     setItems(prev=>{
       const ex=prev.find(it=>it.drug_id===d.id&&!removed.includes(it.id));
       if(ex)return prev.map(it=>it===ex?{...it,qty:(parseInt(it.qty,10)||0)+1}:it);
-      return[...prev,{id:`new-${Date.now()}-${prev.length}`,isNew:true,drug_id:d.id,drug_name:d.name,qty:1,unit_price:d.price}];
+      return[...prev,{id:`new-${Date.now()}-${prev.length}`,isNew:true,drug_id:d.id,drug_name:d.name,batch:d.batch||"",qty:1,unit_price:d.price}];
     });
   };
-  const drugOptions=[...drugs].sort((a,b)=>(a.name||"").localeCompare(b.name||"","fr",{sensitivity:"base"}));
+  const drugOptions=[...drugs].sort((a,b)=>(a.name||"").localeCompare(b.name||"","fr",{sensitivity:"base"})||(a.batch||"").localeCompare(b.batch||"","fr",{numeric:true}));
   const live=items.filter(it=>!removed.includes(it.id));
   const subtotal=live.reduce((s,i)=>s+(Number(i.unit_price)||0)*(Math.max(1,parseInt(i.qty,10)||1)),0);
   const rem=remiseInfo(subtotal);
@@ -1426,7 +1541,7 @@ function InvoiceEditModal({group,onSave,onClose,fmt,drugs=[]}){
           <tbody>
             {items.map(it=>{const gone=removed.includes(it.id);const q=Math.max(1,parseInt(it.qty,10)||1);const line=(Number(it.unit_price)||0)*q;return(
               <tr key={it.id} style={{borderBottom:'1px solid var(--bd2)',opacity:gone?.4:1}}>
-                <td style={{padding:'8px 10px',fontWeight:500,textDecoration:gone?'line-through':'none'}}>{it.drug_name}</td>
+                <td style={{padding:'8px 10px',fontWeight:500,textDecoration:gone?'line-through':'none'}}>{it.drug_name}{it.batch&&<div style={{fontSize:10,color:'var(--t3)',fontWeight:400,fontFamily:'monospace'}}>Lot {it.batch}</div>}</td>
                 <td style={{padding:'8px 10px',textAlign:'center'}}>
                   <input type="number" min="1" value={it.qty} disabled={gone} onChange={e=>setLine(it.id,{qty:e.target.value})} onFocus={e=>e.target.select()} style={{width:56,height:26,textAlign:'center',border:'1px solid var(--bd)',borderRadius:5,fontSize:12,fontWeight:600,outline:'none',padding:0}}/>
                 </td>
@@ -1446,7 +1561,7 @@ function InvoiceEditModal({group,onSave,onClose,fmt,drugs=[]}){
         <select value="" onChange={e=>{if(e.target.value){addDrug(e.target.value);e.target.value="";}}}
           style={{width:'100%',height:38,border:'1px dashed var(--ac)',borderRadius:8,fontSize:13,fontWeight:600,color:'var(--ac)',background:'var(--al)',padding:'0 10px',cursor:'pointer',outline:'none'}}>
           <option value="">+ Ajouter un médicament à la facture…</option>
-          {drugOptions.map(d=><option key={d.id} value={d.id} disabled={d.stock===0}>{d.name}{d.stock===0?" (épuisé)":` — stock ${d.stock}`}</option>)}
+          {drugOptions.map(d=><option key={d.id} value={d.id} disabled={d.stock===0}>{d.name}{d.batch?` · lot ${d.batch}`:""}{d.stock===0?" (épuisé)":` — stock ${d.stock}`}</option>)}
         </select>
       </div>}
       <div className="cart-summary" style={{marginTop:14}}>
@@ -1469,6 +1584,41 @@ function InvoiceEditModal({group,onSave,onClose,fmt,drugs=[]}){
 }
 
 /* ═══════ ANALYTICS PAGE ═══════ */
+/* ═══════ PENDING QUOTES (devis en attente) ═══════ */
+function QuotesPage({quotes,fmt,localMode,activeId,onView,onResume,onCancel,onDelete}){
+  const[tab,setTab]=useState("pending");const[q,setQ]=useState("");
+  const counts={pending:0,converted:0,cancelled:0};quotes.forEach(x=>{if(counts[x.status]!==undefined)counts[x.status]++});
+  const needle=q.trim().toLowerCase();
+  const list=quotes.filter(x=>x.status===tab&&(!needle||(x.customer_name||"").toLowerCase().includes(needle)||(x.number||"").toLowerCase().includes(needle)||(x.customer?.phone||"").includes(needle)));
+  const when=iso=>{if(!iso)return"—";const d=new Date(iso);return isNaN(d)?iso:`${d.toLocaleDateString("fr-FR")} · ${d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}`};
+  const tabs=[["pending","En attente"],["converted","Encaissés"],["cancelled","Annulés"]];
+  return(<div className="tc">
+    <div className="th2" style={{flexWrap:'wrap',gap:10}}>
+      <div className="qf">{tabs.map(([k,l])=><button key={k} className={`bt bt-s bt-sm ${tab===k?"on":""}`} onClick={()=>setTab(k)}>{l} ({counts[k]})</button>)}</div>
+      <div className="srch"><input placeholder="Client, n° de devis, téléphone…" value={q} onChange={e=>setQ(e.target.value)}/></div>
+    </div>
+    {localMode&&<div style={{margin:'0 16px 10px',fontSize:11,background:'#FFF4E5',border:'1px solid #FFB960',color:'#7A4B00',borderRadius:8,padding:'8px 12px'}}>Les devis sont enregistrés sur <strong>cet appareil uniquement</strong>. Exécutez la migration SQL « batch & quotes » dans Supabase pour les partager entre tous les postes.</div>}
+    {!list.length?<div className="emp">{Ic.receipt({size:28,color:'var(--t3)'})}<p>{tab==="pending"?<>Aucun devis en attente.<br/>Dans le panier, cliquez sur « Devis — mettre en attente » pour garder la commande d'un client qui paiera plus tard.</>:"Aucun devis."}</p></div>:
+    <div className="ts"><table><thead><tr><th>N° devis</th><th>Date</th><th>Client</th><th>Articles</th><th style={{textAlign:'right'}}>Total</th><th>Actions</th></tr></thead><tbody>
+      {list.map(x=>{const items=x.items||[];const units=items.reduce((s,i)=>s+Number(i.qty||0),0);return(<tr key={x.id} style={activeId===x.id?{background:'#FFF9EF'}:undefined}>
+        <td><span className="db" style={{fontSize:10.5}}>{x.number}</span>{x.status==="converted"&&x.invoice_number&&<div style={{fontSize:9,color:'var(--ok)'}}>→ {x.invoice_number}</div>}</td>
+        <td style={{fontSize:11,whiteSpace:'nowrap'}}>{when(x.created_at)}</td>
+        <td><div className="dn">{x.customer_name||"Client de passage"}</div>{x.customer?.phone&&<div style={{fontSize:9.5,color:'var(--t3)'}}>{x.customer.phone}</div>}</td>
+        <td style={{fontSize:11,maxWidth:280}}><div style={{fontWeight:600}}>{items.length} médicament{items.length!==1?"s":""} · {units} unité{units!==1?"s":""}</div><div style={{color:'var(--t3)',fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{items.map(i=>`${i.drug_name}${i.batch?` (${i.batch})`:""} ×${i.qty}`).join(", ")}</div></td>
+        <td style={{textAlign:'right',fontWeight:700,whiteSpace:'nowrap'}}>{fmt(Number(x.total)||0)}</td>
+        <td><div className="ac-c">
+          <button className="bt bt-g bt-sm" onClick={()=>onView(x)} title="Voir / imprimer le devis">{Ic.eye({size:12})}</button>
+          {x.status==="pending"&&<>
+            <button className="bt bt-ok bt-sm" onClick={()=>onResume(x)} title="Reprendre ce devis dans le panier et encaisser" style={{gap:5}}>{Ic.cart({size:12})} Encaisser</button>
+            <button className="bt bt-g bt-sm" onClick={()=>onCancel(x)} style={{color:'var(--d)'}} title="Annuler le devis">{Ic.x({size:12})}</button>
+          </>}
+          {x.status!=="pending"&&<button className="bt bt-g bt-sm" onClick={()=>onDelete(x)} style={{color:'var(--d)'}} title="Supprimer">{Ic.trash({size:12})}</button>}
+        </div></td>
+      </tr>)})}
+    </tbody></table></div>}
+  </div>);
+}
+
 function AnalyticsPage({sales,fmt,fmtFC,onReset,onEditInvoice}){
   const[period,setPeriod]=useState("7d");
   const getStart=p=>{const n=new Date();const d={today:0,"7d":7,"14d":14,"30d":30,"3m":90}[p]||7;if(p==="today")return today();return new Date(n-d*864e5).toISOString().split("T")[0]};
@@ -1599,21 +1749,24 @@ function AnalyticsPage({sales,fmt,fmtFC,onReset,onEditInvoice}){
 }
 
 /* ═══════ ALERTS PAGE ═══════ */
-function AP({low,out,exp,warn,onRes}){return(<div className="ag"><AC t={`Stock faible (${low.length})`} tp="w" items={low} em="Tout en stock" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{d.stock} restant(s)</div></div><button className="bt bt-sm bt-p" onClick={()=>onRes(d)}>Réappro.</button></div>}/><AC t={`Épuisé (${out.length})`} tp="d" items={out} em="Aucun" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{d.category}</div></div><button className="bt bt-sm bt-p" onClick={()=>onRes(d)}>Réappro.</button></div>}/><AC t={`Expiration (${exp.length})`} tp="d" items={exp} em="Aucun" render={d=>{const days=daysUntil(d.expiry_date);return<div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{days<0?`Expiré il y a ${Math.abs(days)}j`:`${days}j`}</div></div><span className={`eb ${days<0?"expired":"critical"}`}>{days<0?"EXPIRÉ":`${days}j`}</span></div>}}/><AC t={`90 jours (${warn.length})`} tp="w" items={warn} em="Aucun" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}</div><div className="ald">{d.expiry_date}</div></div><span className="eb warning">{daysUntil(d.expiry_date)}j</span></div>}/></div>)}
+function AP({low,out,exp,warn,onRes}){return(<div className="ag"><AC t={`Stock faible (${low.length})`} tp="w" items={low} em="Tout en stock" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}{d.batch?` · Lot ${d.batch}`:""}</div><div className="ald">{d.stock} restant(s)</div></div><button className="bt bt-sm bt-p" onClick={()=>onRes(d)}>Réappro.</button></div>}/><AC t={`Épuisé (${out.length})`} tp="d" items={out} em="Aucun" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}{d.batch?` · Lot ${d.batch}`:""}</div><div className="ald">{d.category}</div></div><button className="bt bt-sm bt-p" onClick={()=>onRes(d)}>Réappro.</button></div>}/><AC t={`Expiration (${exp.length})`} tp="d" items={exp} em="Aucun" render={d=>{const days=daysUntil(d.expiry_date);return<div key={d.id} className="ali"><div><div className="aln">{d.name}{d.batch?` · Lot ${d.batch}`:""}</div><div className="ald">{days<0?`Expiré il y a ${Math.abs(days)}j`:`${days}j`}</div></div><span className={`eb ${days<0?"expired":"critical"}`}>{days<0?"EXPIRÉ":`${days}j`}</span></div>}}/><AC t={`90 jours (${warn.length})`} tp="w" items={warn} em="Aucun" render={d=><div key={d.id} className="ali"><div><div className="aln">{d.name}{d.batch?` · Lot ${d.batch}`:""}</div><div className="ald">{d.expiry_date}</div></div><span className="eb warning">{daysUntil(d.expiry_date)}j</span></div>}/></div>)}
 function AC({t,tp,items,em,render}){return(<div className="alc"><div className={`alc-h ${tp}`}>{tp==="w"?Ic.alert({size:13}):Ic.box({size:13})} {t}</div><div className="all2">{!items.length?<div className="emp" style={{padding:12}}><p>{em}</p></div>:items.map(render)}</div></div>)}
 
 /* ═══════ DRUG FORM MODAL ═══════ */
-function DF({title,drug,onClose,onSave}){
+// `drug` = edit that row. `template` = add a new lot of an existing medicine (copies its details,
+// but starts with an empty lot number, expiry and stock).
+function DF({title,drug,template,onClose,onSave}){
+  const src=drug||template;
   const[f,setF]=useState({
-    name:drug?.name||"",barcode:drug?.barcode||"",category:drug?.category||"",
+    name:src?.name||"",barcode:src?.barcode||"",category:src?.category||"",batch:drug?.batch||"",
     stock:drug?.stock??0,
-    price_fc:drug?Math.round((drug.price||0)*FC_RATE):0,
-    cost_fc:drug?Math.round((drug.cost_price||0)*FC_RATE):0,
-    expiry_date:drug?.expiry_date||"",supplier:drug?.supplier||"",min_stock:drug?.min_stock??20,
+    price_fc:src?Math.round((src.price||0)*FC_RATE):0,
+    cost_fc:src?Math.round((src.cost_price||0)*FC_RATE):0,
+    expiry_date:drug?.expiry_date||"",supplier:src?.supplier||"",min_stock:src?.min_stock??20,
   });
   const s=(k,v)=>setF(p=>({...p,[k]:v}));
   const sv=()=>{if(!f.name.trim())return;onSave({
-    ...drug,name:f.name,barcode:f.barcode,category:f.category,
+    ...drug,name:f.name,barcode:f.barcode,category:f.category,batch:f.batch.trim()||null,
     stock:parseInt(f.stock)||0,
     price:(parseInt(f.price_fc)||0)/FC_RATE,
     cost_price:(parseInt(f.cost_fc)||0)/FC_RATE,
@@ -1625,15 +1778,17 @@ function DF({title,drug,onClose,onSave}){
   return(<div className="mo-bk" onClick={onClose}><div className="mo" onClick={e=>e.stopPropagation()}>
     <div className="mo-h"><h3>{title}</h3><button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button></div>
     <div className="mo-b"><div className="fg">
-      <div className="fi full"><label>Nom *</label><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Ex: Paracétamol 500mg" autoFocus/></div>
+      <div className="fi full"><label>Nom *</label><input value={f.name} onChange={e=>s("name",e.target.value)} placeholder="Ex: Paracétamol 500mg" autoFocus={!template}/></div>
+      {template&&<div className="fi full" style={{fontSize:11,color:'var(--t2)',background:'var(--al)',padding:'8px 10px',borderRadius:7}}>Lot actuel : <strong>{template.batch||"sans numéro"}</strong> · stock {template.stock}. Ce nouveau lot sera une ligne séparée dans l'inventaire.</div>}
       <div className="fi"><label>Code-barres</label><input value={f.barcode} onChange={e=>s("barcode",e.target.value)}/></div>
       <div className="fi"><label>Catégorie</label><input value={f.category} onChange={e=>s("category",e.target.value)}/></div>
+      <div className="fi"><label>N° de lot</label><input value={f.batch} onChange={e=>s("batch",e.target.value)} placeholder="Ex: LOT-2026A" autoFocus={!!template}/></div>
+      <div className="fi"><label>Expiration</label><input type="date" value={f.expiry_date} onChange={e=>s("expiry_date",e.target.value)}/></div>
       <div className="fi"><label>Stock</label><input type="number" min="0" value={f.stock} onChange={e=>s("stock",e.target.value)}/></div>
       <div className="fi"><label>Stock min</label><input type="number" min="0" value={f.min_stock} onChange={e=>s("min_stock",e.target.value)}/></div>
       <div className="fi"><label>Prix de vente (FC)</label><input type="number" min="0" step="1" value={f.price_fc} onChange={e=>s("price_fc",e.target.value)} placeholder="Ex: 5000"/></div>
       <div className="fi"><label>Coût d'achat (FC)</label><input type="number" min="0" step="1" value={f.cost_fc} onChange={e=>s("cost_fc",e.target.value)} placeholder="Ex: 3000"/></div>
-      <div className="fi"><label>Expiration</label><input type="date" value={f.expiry_date} onChange={e=>s("expiry_date",e.target.value)}/></div>
-      <div className="fi"><label>Fournisseur</label><input value={f.supplier} onChange={e=>s("supplier",e.target.value)}/></div>
+      <div className="fi full"><label>Fournisseur</label><input value={f.supplier} onChange={e=>s("supplier",e.target.value)}/></div>
     </div></div>
     <div className="mo-f"><button className="bt bt-s" onClick={onClose}>Annuler</button><button className="bt bt-p" onClick={sv} disabled={!f.name.trim()}>{Ic.check({size:12})} {drug?"Enregistrer":"Ajouter"}</button></div>
   </div></div>);
@@ -2118,7 +2273,9 @@ function StoreFront({wsId}){
         supabase.from("workspaces").select("name").eq("id",wsId).single(),
         supabase.from("drugs").select("*").eq("workspace_id",wsId).gt("stock",0).order("name"),
       ]);
-      if(ws)setWsName(ws.name);setDrugs(d||[]);setLoading(false);
+      const byName=new Map();
+      (d||[]).forEach(x=>{const k=(x.name||"").trim().toLowerCase();const ex=byName.get(k);if(ex)ex.stock+=x.stock;else byName.set(k,{...x})});
+      if(ws)setWsName(ws.name);setDrugs([...byName.values()]);setLoading(false);
     };
     load();
   },[wsId]);
