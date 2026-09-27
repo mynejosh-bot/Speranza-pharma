@@ -783,7 +783,7 @@ function DashApp({session,onLogout}){
     writeLocalQ(next);setQuotes(next);return saved;
   };
   const quoteToInvoice=q=>{
-    const items=(q.items||[]).map(i=>({drug_name:i.drug_name,batch:i.batch||"",qty:Number(i.qty),unit_price:Number(i.unit_price),total:Number(i.unit_price)*Number(i.qty)}));
+    const items=(q.items||[]).map(i=>({drug_id:i.drug_id,drug_name:i.drug_name,batch:i.batch||"",qty:Number(i.qty),unit_price:Number(i.unit_price),total:Number(i.unit_price)*Number(i.qty)}));
     const subtotal=items.reduce((s,i)=>s+i.total,0);const rem=remiseInfo(subtotal);
     return{number:q.number,date:(q.created_at||"").slice(0,10)||today(),customer:q.customer_name||"",items,subtotal,discount:rem.discount,discountRate:rem.rate,total:rem.final,quote:true,quoteId:q.id};
   };
@@ -805,6 +805,22 @@ function DashApp({session,onLogout}){
     const warn=[missing.length?`indisponible : ${missing.join(", ")}`:"",reduced.length?`stock insuffisant : ${reduced.join(", ")}`:""].filter(Boolean).join(" · ");
     if(warn)t2(`Attention — ${warn}`,"er");else t2(`Devis ${q.number} chargé dans le panier`);
   };
+  // Add a medicine to (or remove one from) a saved pending quote, straight from the devis window.
+  const hQuoteItems=async(quoteId,change)=>{
+    const q=quotes.find(x=>x.id===quoteId);if(!q||q.status!=="pending")return;
+    const items=change(q.items||[]);
+    if(!items.length){t2("Un devis doit contenir au moins un article","er");return}
+    const subtotal=items.reduce((s,i)=>s+Number(i.unit_price)*Number(i.qty),0);
+    const saved=await saveQuote({items,total:remiseInfo(subtotal).final},quoteId);
+    if(saved)setInvoice(quoteToInvoice(saved));
+  };
+  const hQuoteAdd=(quoteId,drug,qty)=>hQuoteItems(quoteId,items=>{
+    const n=Math.max(1,parseInt(qty,10)||1);
+    const ex=items.find(i=>i.drug_id===drug.id);
+    if(ex)return items.map(i=>i===ex?{...i,qty:Math.min(Number(i.qty)+n,drug.stock)}:i);
+    return[...items,{drug_id:drug.id,drug_name:drug.name,batch:drug.batch||"",qty:Math.min(n,drug.stock),unit_price:drug.price}];
+  }).then(()=>t2(`${drug.name} ajouté au devis`));
+  const hQuoteRemove=(quoteId,drugId)=>hQuoteItems(quoteId,items=>items.filter(i=>i.drug_id!==drugId));
   const hCancelQuote=async q=>{
     if(!window.confirm(`Annuler le devis ${q.number}${q.customer_name?` (${q.customer_name})`:""} ?`))return;
     if(await saveQuote({status:"cancelled"},q.id)){if(activeQuote?.id===q.id)setActiveQuote(null);t2(`Devis ${q.number} annulé`,"er")}
@@ -1179,9 +1195,12 @@ function DashApp({session,onLogout}){
     {modal?.type==="restock"&&<RM drug={modal.drug} onClose={()=>setModal(null)} onRes={hRes}/>}
     {modal?.type==="csv"&&<CM onClose={()=>setModal(null)} onImport={hCSV} fileRef={fileRef}/>}
     {modal?.type==="inviteLink"&&<InviteLinkModal link={modal.link} email={modal.email} workspace={modal.workspace} onClose={()=>setModal(null)} onToast={t2}/>}
-    {showCart&&<CartModal cart={cart} setCart={setCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra} activeQuote={activeQuote} onDetachQuote={()=>setActiveQuote(null)}/>}
+    {showCart&&<CartModal cart={cart} setCart={setCart} drugs={drugs} onAdd={addToCart} onConfirm={hCartSell} onQuote={hGenerateQuote} onClose={()=>setShowCart(false)} fmt={fmtFC} clientExtra={clientExtra} activeQuote={activeQuote} onDetachQuote={()=>setActiveQuote(null)}/>}
     {invoice&&<InvoiceModal invoice={invoice} onClose={()=>setInvoice(null)} onEdit={()=>openEditFromInvoice(invoice)} fmt={fmtFC}
-      onCheckout={invoice.quoteId&&quotes.some(q=>q.id===invoice.quoteId&&q.status==="pending")?()=>hResumeQuote(quotes.find(q=>q.id===invoice.quoteId)):null}/>}
+      onCheckout={invoice.quoteId&&quotes.some(q=>q.id===invoice.quoteId&&q.status==="pending")?()=>hResumeQuote(quotes.find(q=>q.id===invoice.quoteId)):null}
+      drugs={drugs}
+      onQuoteAdd={invoice.quoteId&&quotes.some(q=>q.id===invoice.quoteId&&q.status==="pending")?(d,n)=>hQuoteAdd(invoice.quoteId,d,n):null}
+      onQuoteRemove={id=>hQuoteRemove(invoice.quoteId,id)}/>}
     {editInvoice&&<InvoiceEditModal group={editInvoice} drugs={drugs} onSave={hSaveInvoice} onClose={()=>setEditInvoice(null)} fmt={fmtFC}/>}
     {toast&&<div className={`toast ${toast.t}`}>{toast.t==="ok"?Ic.check({size:13}):Ic.alert({size:13})} {toast.m}</div>}
     {showTour&&<Tour onClose={()=>setShowTour(false)}/>}
@@ -1242,8 +1261,35 @@ function DT({drugs,fmt,onAddToCart,onNewBatch,onEdit,onRes,onDel,compact}){
   </div>);
 }
 
+/* ═══════ DRUG PICKER — type to find a medicine, pick a quantity, add ═══════ */
+function DrugPicker({drugs,onPick,label="Ajouter un médicament"}){
+  const[q,setQ]=useState("");const[qty,setQty]=useState(1);const[open,setOpen]=useState(false);
+  const needle=q.trim().toLowerCase();
+  const hits=needle?drugs.filter(d=>(d.name||"").toLowerCase().includes(needle)||(d.barcode||"").includes(needle)||(d.batch||"").toLowerCase().includes(needle))
+    .sort((a,b)=>(b.stock>0)-(a.stock>0)||(a.name||"").localeCompare(b.name||"","fr",{sensitivity:"base"})||(a.batch||"").localeCompare(b.batch||"","fr",{numeric:true})).slice(0,8):[];
+  const pick=d=>{if(!d||d.stock<=0)return;onPick(d,Math.max(1,parseInt(qty,10)||1));setQ("");setQty(1);setOpen(false)};
+  return(<div style={{position:'relative',marginBottom:14}}>
+    <div style={{display:'flex',gap:8,alignItems:'center',border:'1px dashed var(--ac)',background:'var(--al)',borderRadius:9,padding:'6px 8px'}}>
+      <span style={{color:'var(--ac)',display:'flex'}}>{Ic.plus({size:14})}</span>
+      <input value={q} placeholder={`${label} — tapez un nom, un code ou un lot…`} onChange={e=>{setQ(e.target.value);setOpen(true)}} onFocus={()=>setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),150)}
+        onKeyDown={e=>{if(e.key==="Enter")pick(hits.find(d=>d.stock>0));if(e.key==="Escape")setOpen(false)}}
+        style={{flex:1,minWidth:0,border:'none',background:'transparent',outline:'none',fontSize:13,fontWeight:500,height:28}}/>
+      <input type="number" min="1" value={qty} title="Quantité" onChange={e=>setQty(e.target.value)} onFocus={e=>e.target.select()}
+        style={{width:56,height:28,textAlign:'center',border:'1px solid var(--bd)',borderRadius:6,fontSize:13,fontWeight:600,outline:'none',padding:0,background:'#fff'}}/>
+    </div>
+    {open&&needle&&<div style={{position:'absolute',left:0,right:0,top:'calc(100% + 4px)',zIndex:20,background:'#fff',border:'1px solid var(--bd)',borderRadius:9,boxShadow:'0 10px 30px rgba(0,0,0,.12)',maxHeight:280,overflowY:'auto'}}>
+      {!hits.length?<div style={{padding:'12px 14px',fontSize:12,color:'var(--t3)'}}>Aucun médicament trouvé.</div>:
+      hits.map(d=><button key={d.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>pick(d)} disabled={d.stock<=0}
+        style={{display:'flex',width:'100%',justifyContent:'space-between',alignItems:'center',gap:10,padding:'9px 14px',border:'none',borderBottom:'1px solid var(--bd2)',background:'transparent',cursor:d.stock>0?'pointer':'not-allowed',opacity:d.stock>0?1:.45,textAlign:'left',fontSize:12.5}}>
+        <span><strong>{d.name}</strong>{d.batch&&<span className="lot-b" style={{marginLeft:6}}>Lot {d.batch}</span>}</span>
+        <span style={{color:'var(--t3)',fontSize:11,whiteSpace:'nowrap'}}>{d.stock>0?`stock ${d.stock} · ${fmtAmt(d.price,"FC")}`:"épuisé"}</span>
+      </button>)}
+    </div>}
+  </div>);
+}
+
 /* ═══════ CART MODAL ═══════ */
-function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={},activeQuote,onDetachQuote}){
+function CartModal({cart,setCart,drugs=[],onAdd,onConfirm,onQuote,onClose,fmt,clientExtra={},activeQuote,onDetachQuote}){
   const[customer,setCustomer]=useState(activeQuote?.customer_name||"");
   const[phone,setPhone]=useState(activeQuote?.customer?.phone||"");
   const[address,setAddress]=useState(activeQuote?.customer?.address||"");
@@ -1294,9 +1340,10 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={},ac
     </div>
     <div className="mo-b" style={{maxHeight:'65vh',overflowY:'auto'}}>
       {activeQuote&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,background:'#FFF4E5',border:'1px solid #FFB960',color:'#7A4B00',borderRadius:8,padding:'9px 12px',marginBottom:12,fontSize:12}}>
-        <span>{Ic.receipt({size:13})} Devis <strong>{activeQuote.number}</strong> repris{activeQuote.customer_name?` — ${activeQuote.customer_name}`:""}. Confirmez la vente pour l'encaisser.</span>
+        <span>{Ic.receipt({size:13})} Devis <strong>{activeQuote.number}</strong> repris{activeQuote.customer_name?` — ${activeQuote.customer_name}`:""}. Ajoutez des médicaments si besoin, puis confirmez la vente ou mettez le devis à jour.</span>
         {onDetachQuote&&<button className="bt bt-g bt-sm" onClick={onDetachQuote} title="Ne plus lier ce panier au devis">{Ic.x({size:11})}</button>}
       </div>}
+      {onAdd&&<DrugPicker drugs={drugs} onPick={onAdd}/>}
       {cart.length===0
         ?<div className="emp" style={{padding:'48px 0'}}>{Ic.cart({size:36,color:'var(--t3)'})}<p style={{marginTop:14,fontSize:13}}>Le panier est vide.<br/>Ajoutez des médicaments depuis l'inventaire.</p></div>
         :<>
@@ -1352,7 +1399,7 @@ function CartModal({cart,setCart,onConfirm,onQuote,onClose,fmt,clientExtra={},ac
 
 /* ═══════ INVOICE MODAL ═══════ */
 const sortInvItems=items=>[...(items||[])].sort((a,b)=>(a.drug_name||"").localeCompare(b.drug_name||"","fr",{sensitivity:"base"})||(a.batch||"").localeCompare(b.batch||"","fr",{numeric:true}));
-function InvoiceModal({invoice,onClose,fmt,onEdit,onCheckout}){
+function InvoiceModal({invoice,onClose,fmt,onEdit,onCheckout,drugs=[],onQuoteAdd,onQuoteRemove}){
   const isQuote=!!invoice.quote;
   const docLabel=isQuote?"Devis":"Facture";
   const subtotal=invoice.subtotal??invoice.total;
@@ -1441,7 +1488,8 @@ tr{page-break-inside:avoid}
       </div>
       <button className="bt bt-g" onClick={onClose}>{Ic.x({size:14})}</button>
     </div>
-    <div className="mo-b">
+    <div className="mo-b" style={{maxHeight:'70vh',overflowY:'auto'}}>
+      {onQuoteAdd&&<DrugPicker drugs={drugs} onPick={onQuoteAdd} label="Ajouter au devis"/>}
       <div style={{overflowX:'auto'}}>
         <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:0}}>
           <thead><tr style={{background:'var(--al)'}}>
@@ -1453,7 +1501,7 @@ tr{page-break-inside:avoid}
           </tr></thead>
           <tbody>
             {sortInvItems(invoice.items).map((item,i)=><tr key={i} style={{borderBottom:'1px solid var(--bd2)'}}>
-              <td style={{padding:'9px 10px',fontWeight:500}}>{item.drug_name}</td>
+              <td style={{padding:'9px 10px',fontWeight:500}}>{onQuoteAdd&&invoice.items.length>1&&<button className="bt bt-g bt-sm" onClick={()=>onQuoteRemove(item.drug_id)} title="Retirer du devis" style={{color:'var(--d)',padding:'2px 5px',marginRight:6,verticalAlign:'middle'}}>{Ic.trash({size:11})}</button>}{item.drug_name}</td>
               <td style={{padding:'9px 10px',color:'var(--t2)',fontFamily:'monospace',fontSize:11}}>{item.batch||"—"}</td>
               <td style={{padding:'9px 10px',textAlign:'center',color:'var(--t2)'}}>{item.qty}</td>
               <td style={{padding:'9px 10px',textAlign:'right',color:'var(--t2)'}}>{fmt(item.unit_price)}</td>
